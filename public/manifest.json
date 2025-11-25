@@ -1,0 +1,5 @@
+{
+  "name": "Timelock Manager",
+  "description": "Create, decode, and execute OpenZeppelin TimelockController transactions when the timelock is owned by a Safe multisig",
+  "iconPath": "icon.svg"
+}

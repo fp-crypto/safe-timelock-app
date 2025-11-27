@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   useAccount,
   useConnect,
@@ -8,7 +8,7 @@ import {
   useChainId,
   useSwitchChain,
 } from 'wagmi';
-import { type Hex, type Address, isAddress, parseEther, zeroHash } from 'viem';
+import { type Hex, type Address, isAddress, zeroHash } from 'viem';
 import { useAutoConnect, useIsSafeApp } from './hooks/useAutoConnect';
 import { useOperationStatus, useMinDelay } from './hooks/useTimelockStatus';
 import {
@@ -19,11 +19,12 @@ import {
   encodeCancel,
   decodeTimelockCalldata,
   hashOperation,
-  hashOperationBatch,
   generateRandomSalt,
   formatDelay,
 } from './lib/timelock';
 import { chains } from './config/wagmi';
+import { DecodedCalldata, DecodedCalldataSummary } from './components/DecodedCalldata';
+import { AbiManager } from './components/AbiManager';
 
 // Wallet Connection Component
 function WalletConnection() {
@@ -33,8 +34,6 @@ function WalletConnection() {
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const isSafeApp = useIsSafeApp();
-
-  const currentChain = chains.find((c) => c.id === chainId);
 
   if (isConnected) {
     return (
@@ -49,7 +48,7 @@ function WalletConnection() {
           </div>
           <select
             value={chainId}
-            onChange={(e) => switchChain?.({ chainId: Number(e.target.value) })}
+            onChange={(e) => switchChain?.({ chainId: Number(e.target.value) as typeof chains[number]['id'] })}
             className="chain-select"
           >
             {chains.map((chain) => (
@@ -194,7 +193,7 @@ function StatusDisplay({
           ↻
         </button>
       </div>
-      {status?.timestamp && status.timestamp > 0n && (
+      {status?.timestamp !== undefined && status.timestamp > 0n && (
         <div className="status-timestamp">
           Ready at: {new Date(Number(status.timestamp) * 1000).toLocaleString()}
         </div>
@@ -208,8 +207,8 @@ function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined
   const [target, setTarget] = useState('');
   const [value, setValue] = useState('0');
   const [data, setData] = useState('0x');
-  const [predecessor, setPredecessor] = useState(zeroHash);
-  const [salt, setSalt] = useState(zeroHash);
+  const [predecessor, setPredecessor] = useState<string>(zeroHash);
+  const [salt, setSalt] = useState<string>(zeroHash);
   const [delay, setDelay] = useState('86400');
   const [output, setOutput] = useState({ calldata: '', operationId: '' });
   const [error, setError] = useState('');
@@ -330,8 +329,8 @@ function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined
 // Schedule Batch Tab
 function ScheduleBatchTab({ timelockAddress }: { timelockAddress: Address | undefined }) {
   const [operations, setOperations] = useState([{ target: '', value: '0', data: '0x' }]);
-  const [predecessor, setPredecessor] = useState(zeroHash);
-  const [salt, setSalt] = useState(zeroHash);
+  const [predecessor, setPredecessor] = useState<string>(zeroHash);
+  const [salt, setSalt] = useState<string>(zeroHash);
   const [delay, setDelay] = useState('86400');
   const [output, setOutput] = useState({ calldata: '', operationId: '' });
   const [error, setError] = useState('');
@@ -455,17 +454,37 @@ function ScheduleBatchTab({ timelockAddress }: { timelockAddress: Address | unde
 
 // Execute Tab
 function ExecuteTab({ timelockAddress }: { timelockAddress: Address | undefined }) {
+  const [importCalldata, setImportCalldata] = useState('');
   const [target, setTarget] = useState('');
   const [value, setValue] = useState('0');
   const [data, setData] = useState('0x');
-  const [predecessor, setPredecessor] = useState(zeroHash);
-  const [salt, setSalt] = useState(zeroHash);
+  const [predecessor, setPredecessor] = useState<string>(zeroHash);
+  const [salt, setSalt] = useState<string>(zeroHash);
   const [output, setOutput] = useState({ calldata: '', operationId: '' });
   const [error, setError] = useState('');
 
   const { isConnected } = useAccount();
   const { sendTransaction, data: txHash, isPending } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const handleImport = useCallback(() => {
+    try {
+      setError('');
+      const decoded = decodeTimelockCalldata(importCalldata as Hex);
+      if (!decoded) throw new Error('Could not decode calldata');
+      if (decoded.functionName !== 'schedule') {
+        throw new Error(`Expected schedule() calldata, got ${decoded.functionName}()`);
+      }
+      setTarget(decoded.target || '');
+      setValue(decoded.value || '0');
+      setData(decoded.data || '0x');
+      setPredecessor(decoded.predecessor || zeroHash);
+      setSalt(decoded.salt || zeroHash);
+      setImportCalldata('');
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }, [importCalldata]);
 
   const encode = useCallback(() => {
     try {
@@ -499,6 +518,20 @@ function ExecuteTab({ timelockAddress }: { timelockAddress: Address | undefined 
         </p>
       </div>
 
+      <div className="import-section">
+        <InputField
+          label="Import from Schedule Calldata"
+          value={importCalldata}
+          onChange={setImportCalldata}
+          placeholder="Paste schedule() calldata to auto-fill fields..."
+          multiline
+          mono
+        />
+        <button onClick={handleImport} disabled={!importCalldata} className="btn btn-secondary">
+          Import
+        </button>
+      </div>
+
       <InputField label="Target Address" value={target} onChange={setTarget} placeholder="0x..." mono />
       <InputField label="Value (wei)" value={value} onChange={setValue} placeholder="0" />
       <InputField label="Calldata" value={data} onChange={setData} placeholder="0x..." multiline mono />
@@ -524,6 +557,205 @@ function ExecuteTab({ timelockAddress }: { timelockAddress: Address | undefined 
 
       {output.operationId && (
         <StatusDisplay timelockAddress={timelockAddress} operationId={output.operationId as Hex} />
+      )}
+    </div>
+  );
+}
+
+// Execute Batch Tab
+function ExecuteBatchTab({ timelockAddress }: { timelockAddress: Address | undefined }) {
+  const [importCalldata, setImportCalldata] = useState('');
+  const [operations, setOperations] = useState([{ target: '', value: '0', data: '0x' }]);
+  const [predecessor, setPredecessor] = useState<string>(zeroHash);
+  const [salt, setSalt] = useState<string>(zeroHash);
+  const [output, setOutput] = useState({ calldata: '', operationId: '' });
+  const [error, setError] = useState('');
+
+  const { isConnected } = useAccount();
+  const { sendTransaction, data: txHash, isPending } = useSendTransaction();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const handleImport = useCallback(() => {
+    try {
+      setError('');
+      const decoded = decodeTimelockCalldata(importCalldata as Hex);
+      if (!decoded) throw new Error('Could not decode calldata');
+      if (decoded.functionName !== 'scheduleBatch') {
+        throw new Error(`Expected scheduleBatch() calldata, got ${decoded.functionName}()`);
+      }
+      if (!decoded.operations || decoded.operations.length === 0) {
+        throw new Error('No operations found in calldata');
+      }
+      setOperations(decoded.operations.map(op => ({
+        target: op.target,
+        value: op.value,
+        data: op.data,
+      })));
+      setPredecessor(decoded.predecessor || zeroHash);
+      setSalt(decoded.salt || zeroHash);
+      setImportCalldata('');
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }, [importCalldata]);
+
+  const addOperation = () => setOperations([...operations, { target: '', value: '0', data: '0x' }]);
+  const removeOperation = (i: number) => setOperations(operations.filter((_, idx) => idx !== i));
+  const updateOp = (i: number, field: string, val: string) => {
+    const updated = [...operations];
+    (updated[i] as any)[field] = val;
+    setOperations(updated);
+  };
+
+  const encode = useCallback(() => {
+    try {
+      setError('');
+      const targets = operations.map((op) => {
+        if (!isAddress(op.target)) throw new Error(`Invalid address: ${op.target}`);
+        return op.target as Address;
+      });
+      const values = operations.map((op) => BigInt(op.value));
+      const payloads = operations.map((op) => op.data as Hex);
+
+      const result = encodeExecuteBatch(
+        targets,
+        values,
+        payloads,
+        predecessor as Hex,
+        salt as Hex
+      );
+      setOutput({ calldata: result.calldata, operationId: result.operationId });
+    } catch (err: any) {
+      setError(err.message);
+      setOutput({ calldata: '', operationId: '' });
+    }
+  }, [operations, predecessor, salt]);
+
+  const submit = () => {
+    if (!timelockAddress || !output.calldata) return;
+    const totalValue = operations.reduce((sum, op) => sum + BigInt(op.value), 0n);
+    sendTransaction({ to: timelockAddress, data: output.calldata as Hex, value: totalValue });
+  };
+
+  return (
+    <div className="tab-content">
+      <div className="tab-header">
+        <h3>Execute Batch</h3>
+        <p>
+          Encode an <code>executeBatch()</code> to execute multiple operations atomically.
+        </p>
+      </div>
+
+      <div className="import-section">
+        <InputField
+          label="Import from Schedule Batch Calldata"
+          value={importCalldata}
+          onChange={setImportCalldata}
+          placeholder="Paste scheduleBatch() calldata to auto-fill fields..."
+          multiline
+          mono
+        />
+        <button onClick={handleImport} disabled={!importCalldata} className="btn btn-secondary">
+          Import
+        </button>
+      </div>
+
+      {operations.map((op, i) => (
+        <div key={i} className="operation-card">
+          <div className="operation-header">
+            <span>Operation {i + 1}</span>
+            {operations.length > 1 && (
+              <button onClick={() => removeOperation(i)} className="remove-btn">
+                ✕
+              </button>
+            )}
+          </div>
+          <InputField
+            label="Target"
+            value={op.target}
+            onChange={(v) => updateOp(i, 'target', v)}
+            placeholder="0x..."
+            mono
+          />
+          <InputField
+            label="Value"
+            value={op.value}
+            onChange={(v) => updateOp(i, 'value', v)}
+            placeholder="0"
+          />
+          <InputField
+            label="Data"
+            value={op.data}
+            onChange={(v) => updateOp(i, 'data', v)}
+            placeholder="0x..."
+            mono
+          />
+        </div>
+      ))}
+
+      <button onClick={addOperation} className="btn btn-secondary add-op-btn">
+        + Add Operation
+      </button>
+
+      <InputField label="Predecessor" value={predecessor} onChange={setPredecessor} mono />
+      <InputField label="Salt" value={salt} onChange={setSalt} mono />
+
+      <div className="actions">
+        <button onClick={encode} className="btn btn-warning">
+          Encode Execute Batch
+        </button>
+        {output.calldata && isConnected && timelockAddress && (
+          <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
+            {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : 'Submit to Safe'}
+          </button>
+        )}
+      </div>
+
+      {isSuccess && <div className="success-message">Transaction submitted!</div>}
+      {error && <div className="error-message">{error}</div>}
+
+      <OutputDisplay label="Operation ID" value={output.operationId} />
+      <OutputDisplay label="Execute Batch Calldata" value={output.calldata} />
+
+      {output.operationId && (
+        <StatusDisplay timelockAddress={timelockAddress} operationId={output.operationId as Hex} />
+      )}
+    </div>
+  );
+}
+
+// Expandable Batch Operation Item
+function BatchOperationItem({
+  index,
+  operation,
+}: {
+  index: number;
+  operation: { target: Address; value: string; data: Hex };
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="batch-operation">
+      <div
+        className="batch-operation-header"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <span className="batch-op-index">#{index + 1}</span>
+        <DecodedCalldataSummary calldata={operation.data} />
+        <span className="batch-op-expand">{isExpanded ? '▼' : '▶'}</span>
+      </div>
+      {isExpanded && (
+        <div className="batch-operation-content">
+          <div className="op-details">
+            <div>
+              <span className="label">Target:</span> <code>{operation.target}</code>
+            </div>
+            <div>
+              <span className="label">Value:</span> <code>{operation.value} wei</code>
+            </div>
+          </div>
+          <DecodedCalldata calldata={operation.data} target={operation.target} />
+        </div>
       )}
     </div>
   );
@@ -579,26 +811,25 @@ function DecodeTab() {
           {decoded.operationId && <OutputDisplay label="Operation ID" value={decoded.operationId} />}
           {decoded.target && <OutputDisplay label="Target" value={decoded.target} />}
           {decoded.value && <OutputDisplay label="Value (wei)" value={decoded.value} />}
-          {decoded.data && <OutputDisplay label="Inner Calldata" value={decoded.data} />}
 
+          {/* Single operation: show inner calldata decoder */}
+          {decoded.data && (
+            <>
+              <OutputDisplay label="Inner Calldata" value={decoded.data} />
+              <DecodedCalldata calldata={decoded.data as Hex} target={decoded.target} />
+            </>
+          )}
+
+          {/* Batch operations: show expandable list */}
           {decoded.operations && (
             <div className="operations-list">
               <label>Operations ({decoded.operations.length})</label>
               {decoded.operations.map((op, i) => (
-                <div key={i} className="operation-item">
-                  <span className="op-index">#{i + 1}</span>
-                  <div className="op-details">
-                    <div>
-                      <span className="label">target:</span> {op.target}
-                    </div>
-                    <div>
-                      <span className="label">value:</span> {op.value}
-                    </div>
-                    <div>
-                      <span className="label">data:</span> {op.data}
-                    </div>
-                  </div>
-                </div>
+                <BatchOperationItem
+                  key={i}
+                  index={i}
+                  operation={op as { target: Address; value: string; data: Hex }}
+                />
               ))}
             </div>
           )}
@@ -610,6 +841,8 @@ function DecodeTab() {
           )}
         </div>
       )}
+
+      <AbiManager />
     </div>
   );
 }
@@ -619,8 +852,8 @@ function HashTab() {
   const [target, setTarget] = useState('');
   const [value, setValue] = useState('0');
   const [data, setData] = useState('0x');
-  const [predecessor, setPredecessor] = useState(zeroHash);
-  const [salt, setSalt] = useState(zeroHash);
+  const [predecessor, setPredecessor] = useState<string>(zeroHash);
+  const [salt, setSalt] = useState<string>(zeroHash);
   const [operationId, setOperationId] = useState('');
   const [error, setError] = useState('');
 
@@ -720,18 +953,33 @@ function CancelTab({ timelockAddress }: { timelockAddress: Address | undefined }
   );
 }
 
+const TIMELOCK_ADDRESS_KEY = 'safe-timelock-address';
+
 // Main App
 export function App() {
   const [activeTab, setActiveTab] = useState('schedule');
-  const [timelockAddress, setTimelockAddress] = useState('');
+  const [timelockAddress, setTimelockAddress] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(TIMELOCK_ADDRESS_KEY) || '';
+    }
+    return '';
+  });
+
+  // Persist timelock address to localStorage
+  useEffect(() => {
+    if (timelockAddress) {
+      localStorage.setItem(TIMELOCK_ADDRESS_KEY, timelockAddress);
+    }
+  }, [timelockAddress]);
 
   // Auto-connect to Safe if in iframe
   useAutoConnect();
 
   const tabs = [
     { id: 'schedule', label: 'Schedule', icon: '📅' },
-    { id: 'batch', label: 'Batch', icon: '📦' },
+    { id: 'schedule-batch', label: 'Schedule Batch', icon: '📦' },
     { id: 'execute', label: 'Execute', icon: '▶️' },
+    { id: 'execute-batch', label: 'Execute Batch', icon: '⏩' },
     { id: 'decode', label: 'Decode', icon: '🔍' },
     { id: 'hash', label: 'Hash', icon: '#️⃣' },
     { id: 'cancel', label: 'Cancel', icon: '🚫' },
@@ -779,8 +1027,9 @@ export function App() {
 
         <div className="tab-panel">
           {activeTab === 'schedule' && <ScheduleTab timelockAddress={validTimelockAddress} />}
-          {activeTab === 'batch' && <ScheduleBatchTab timelockAddress={validTimelockAddress} />}
+          {activeTab === 'schedule-batch' && <ScheduleBatchTab timelockAddress={validTimelockAddress} />}
           {activeTab === 'execute' && <ExecuteTab timelockAddress={validTimelockAddress} />}
+          {activeTab === 'execute-batch' && <ExecuteBatchTab timelockAddress={validTimelockAddress} />}
           {activeTab === 'decode' && <DecodeTab />}
           {activeTab === 'hash' && <HashTab />}
           {activeTab === 'cancel' && <CancelTab timelockAddress={validTimelockAddress} />}

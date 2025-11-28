@@ -5,6 +5,7 @@ import { useSourcifyAbi } from '../hooks/useSourcifyAbi';
 interface CalldataBuilderProps {
   targetAddress: string;
   onCalldataGenerated: (calldata: string) => void;
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
 /**
@@ -158,7 +159,7 @@ function parseParamValue(value: string, type: string): unknown {
   return trimmed;
 }
 
-export function CalldataBuilder({ targetAddress, onCalldataGenerated }: CalldataBuilderProps) {
+export function CalldataBuilder({ targetAddress, onCalldataGenerated, onExpandedChange }: CalldataBuilderProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedFunctionName, setSelectedFunctionName] = useState<string>('');
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
@@ -236,8 +237,9 @@ export function CalldataBuilder({ targetAddress, onCalldataGenerated }: Calldata
   // Handle fetch button click
   const handleFetch = useCallback(() => {
     setIsExpanded(true);
+    onExpandedChange?.(true);
     fetch();
-  }, [fetch]);
+  }, [fetch, onExpandedChange]);
 
   // Handle reset
   const handleReset = useCallback(() => {
@@ -246,7 +248,8 @@ export function CalldataBuilder({ targetAddress, onCalldataGenerated }: Calldata
     setParamValues({});
     setEncodeError(null);
     setIsExpanded(false);
-  }, [reset]);
+    onExpandedChange?.(false);
+  }, [reset, onExpandedChange]);
 
   // Render status message
   const renderStatus = () => {

@@ -417,6 +417,8 @@ function ExecuteTab({
   const [salt, setSalt] = useState<string>(zeroHash);
   const [output, setOutput] = useState({ calldata: '', operationId: '' });
   const [error, setError] = useState('');
+  const [expandedBuilderIndex, setExpandedBuilderIndex] = useState<number | null>(null);
+  const [useBatch, setUseBatch] = useState(false);
 
   useEffect(() => {
     onUpdate(operations);
@@ -442,12 +444,14 @@ function ExecuteTab({
 
       if (decoded.functionName === 'schedule') {
         // Single operation import
+        setUseBatch(false);
         setOperations([{
           target: decoded.target || '',
           value: decoded.value || '0',
           data: decoded.data || '0x',
         }]);
       } else if (decoded.functionName === 'scheduleBatch') {
+        setUseBatch(true);
         // Batch operation import
         if (!decoded.operations || decoded.operations.length === 0) {
           throw new Error('No operations found in calldata');
@@ -472,12 +476,14 @@ function ExecuteTab({
   const handleSelectScheduled = useCallback((decoded: DecodedTimelock) => {
     setError('');
     if (decoded.functionName === 'schedule') {
+      setUseBatch(false);
       setOperations([{
         target: decoded.target || '',
         value: decoded.value || '0',
         data: decoded.data || '0x',
       }]);
     } else if (decoded.functionName === 'scheduleBatch' && decoded.operations) {
+      setUseBatch(true);
       setOperations(decoded.operations.map(op => ({
         target: op.target,
         value: op.value,
@@ -501,21 +507,23 @@ function ExecuteTab({
       const payloads = operations.map((op) => op.data as Hex);
 
       let result;
-      if (operations.length === 1) {
+      const shouldUseBatch = operations.length > 1 || useBatch;
+
+      if (shouldUseBatch) {
+        // Use executeBatch()
+        result = encodeExecuteBatch(
+          targets,
+          values,
+          payloads,
+          predecessor as Hex,
+          salt as Hex
+        );
+      } else {
         // Single operation - use execute()
         result = encodeExecute(
           targets[0],
           values[0],
           payloads[0],
-          predecessor as Hex,
-          salt as Hex
-        );
-      } else {
-        // Multiple operations - use executeBatch()
-        result = encodeExecuteBatch(
-          targets,
-          values,
-          payloads,
           predecessor as Hex,
           salt as Hex
         );
@@ -525,7 +533,7 @@ function ExecuteTab({
       setError(err.message);
       setOutput({ calldata: '', operationId: '' });
     }
-  }, [operations, predecessor, salt]);
+  }, [operations, predecessor, salt, useBatch]);
 
   const submit = () => {
     if (!timelockAddress || !output.calldata) return;
@@ -533,7 +541,7 @@ function ExecuteTab({
     sendTransaction({ to: timelockAddress, data: output.calldata as Hex, value: totalValue });
   };
 
-  const isBatch = operations.length > 1;
+  const isBatch = operations.length > 1 || useBatch;
 
   return (
     <div className="tab-content">
@@ -597,13 +605,38 @@ function ExecuteTab({
           <CalldataBuilder
             targetAddress={op.target}
             onCalldataGenerated={(calldata) => updateOp(i, 'data', calldata)}
+            onExpandedChange={(expanded) => setExpandedBuilderIndex(expanded ? i : null)}
           />
+          {op.data && op.data !== '0x' && expandedBuilderIndex !== i && (
+            <div className="decoded-calldata-section">
+              <DecodedCalldata
+                calldata={op.data as Hex}
+                target={isAddress(op.target) ? op.target : undefined}
+              />
+            </div>
+          )}
         </div>
       ))}
 
       <button onClick={addOperation} className="btn btn-secondary add-op-btn">
         + Add Operation
       </button>
+
+      {operations.length === 1 && (
+        <div className="batch-toggle">
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={useBatch}
+              onChange={(e) => setUseBatch(e.target.checked)}
+            />
+            <span>Use executeBatch()</span>
+          </label>
+          <span className="toggle-hint">
+            Enable if the operation was scheduled with scheduleBatch()
+          </span>
+        </div>
+      )}
 
       <InputField label="Predecessor" value={predecessor} onChange={setPredecessor} mono />
       <InputField label="Salt" value={salt} onChange={setSalt} mono />

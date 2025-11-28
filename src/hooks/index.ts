@@ -9,3 +9,5 @@ export type { ProxyInfo } from './useProxyDetection';
 export { useSourcifyAbi, fetchSourcifyAbi } from './useSourcifyAbi';
 export type { UseSourcifyAbiResult, SourcifyStatus } from './useSourcifyAbi';
 export { useSourcifyDecode } from './useSourcifyDecode';
+export { useUrlState } from './useUrlState';
+export type { UrlState, Operation as UrlOperation } from './useUrlState';

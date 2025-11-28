@@ -11,6 +11,7 @@ import {
 import { type Hex, type Address, isAddress, zeroHash } from 'viem';
 import { useAutoConnect, useIsSafeApp } from './hooks/useAutoConnect';
 import { useOperationStatus, useMinDelay } from './hooks/useTimelockStatus';
+import { useUrlState, type Operation as UrlOperation } from './hooks/useUrlState';
 import {
   encodeSchedule,
   encodeScheduleBatch,
@@ -204,13 +205,27 @@ function StatusDisplay({
 }
 
 // Schedule Tab (unified - handles both single and batch)
-function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined }) {
-  const [operations, setOperations] = useState([{ target: '', value: '0', data: '0x' }]);
+function ScheduleTab({
+  timelockAddress,
+  initialOps,
+  initialDelay,
+  onUpdate,
+}: {
+  timelockAddress: Address | undefined;
+  initialOps: UrlOperation[];
+  initialDelay: string;
+  onUpdate: (ops: UrlOperation[], delay: string) => void;
+}) {
+  const [operations, setOperations] = useState(initialOps);
   const [predecessor, setPredecessor] = useState<string>(zeroHash);
   const [salt, setSalt] = useState<string>(zeroHash);
-  const [delay, setDelay] = useState('86400');
+  const [delay, setDelay] = useState(initialDelay);
   const [output, setOutput] = useState({ calldata: '', operationId: '' });
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    onUpdate(operations, delay);
+  }, [operations, delay, onUpdate]);
 
   const { isConnected } = useAccount();
   const { sendTransaction, data: txHash, isPending } = useSendTransaction();
@@ -384,13 +399,25 @@ function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined
 }
 
 // Execute Tab (unified - handles both single and batch)
-function ExecuteTab({ timelockAddress }: { timelockAddress: Address | undefined }) {
+function ExecuteTab({
+  timelockAddress,
+  initialOps,
+  onUpdate,
+}: {
+  timelockAddress: Address | undefined;
+  initialOps: UrlOperation[];
+  onUpdate: (ops: UrlOperation[]) => void;
+}) {
   const [importCalldata, setImportCalldata] = useState('');
-  const [operations, setOperations] = useState([{ target: '', value: '0', data: '0x' }]);
+  const [operations, setOperations] = useState(initialOps);
   const [predecessor, setPredecessor] = useState<string>(zeroHash);
   const [salt, setSalt] = useState<string>(zeroHash);
   const [output, setOutput] = useState({ calldata: '', operationId: '' });
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    onUpdate(operations);
+  }, [operations, onUpdate]);
 
   const { isConnected } = useAccount();
   const { sendTransaction, data: txHash, isPending } = useSendTransaction();
@@ -616,10 +643,20 @@ function BatchOperationItem({
 }
 
 // Decode Tab
-function DecodeTab() {
-  const [calldata, setCalldata] = useState('');
+function DecodeTab({
+  initialCalldata,
+  onUpdate,
+}: {
+  initialCalldata: string;
+  onUpdate: (calldata: string) => void;
+}) {
+  const [calldata, setCalldata] = useState(initialCalldata);
   const [decoded, setDecoded] = useState<ReturnType<typeof decodeTimelockCalldata>>(null);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    onUpdate(calldata);
+  }, [calldata, onUpdate]);
 
   const decode = useCallback(() => {
     try {
@@ -702,14 +739,28 @@ function DecodeTab() {
 }
 
 // Hash Calculator Tab
-function HashTab() {
-  const [target, setTarget] = useState('');
-  const [value, setValue] = useState('0');
-  const [data, setData] = useState('0x');
+function HashTab({
+  initialTarget,
+  initialValue,
+  initialData,
+  onUpdate,
+}: {
+  initialTarget: string;
+  initialValue: string;
+  initialData: string;
+  onUpdate: (target: string, value: string, data: string) => void;
+}) {
+  const [target, setTarget] = useState(initialTarget);
+  const [value, setValue] = useState(initialValue);
+  const [data, setData] = useState(initialData);
   const [predecessor, setPredecessor] = useState<string>(zeroHash);
   const [salt, setSalt] = useState<string>(zeroHash);
   const [operationId, setOperationId] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    onUpdate(target, value, data);
+  }, [target, value, data, onUpdate]);
 
   const calculate = useCallback(() => {
     try {
@@ -747,10 +798,22 @@ function HashTab() {
 }
 
 // Cancel Tab
-function CancelTab({ timelockAddress }: { timelockAddress: Address | undefined }) {
-  const [operationId, setOperationId] = useState('');
+function CancelTab({
+  timelockAddress,
+  initialOpId,
+  onUpdate,
+}: {
+  timelockAddress: Address | undefined;
+  initialOpId: string;
+  onUpdate: (opId: string) => void;
+}) {
+  const [operationId, setOperationId] = useState(initialOpId);
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    onUpdate(operationId);
+  }, [operationId, onUpdate]);
 
   const { isConnected } = useAccount();
   const { sendTransaction, data: txHash, isPending } = useSendTransaction();
@@ -811,20 +874,29 @@ const TIMELOCK_ADDRESS_KEY = 'safe-timelock-address';
 
 // Main App
 export function App() {
-  const [activeTab, setActiveTab] = useState('schedule');
-  const [timelockAddress, setTimelockAddress] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(TIMELOCK_ADDRESS_KEY) || '';
-    }
-    return '';
-  });
+  // Get localStorage timelock for fallback
+  const localStorageTimelock = typeof window !== 'undefined'
+    ? localStorage.getItem(TIMELOCK_ADDRESS_KEY) || ''
+    : '';
 
-  // Persist timelock address to localStorage
+  // URL state management
+  const { initialState, updateUrl } = useUrlState(localStorageTimelock);
+
+  const [activeTab, setActiveTab] = useState(initialState.tab);
+  const [timelockAddress, setTimelockAddress] = useState(initialState.timelock);
+
+  // Persist timelock address to localStorage and URL
   useEffect(() => {
     if (timelockAddress) {
       localStorage.setItem(TIMELOCK_ADDRESS_KEY, timelockAddress);
     }
-  }, [timelockAddress]);
+    updateUrl({ timelock: timelockAddress });
+  }, [timelockAddress, updateUrl]);
+
+  // Update URL when tab changes
+  useEffect(() => {
+    updateUrl({ tab: activeTab });
+  }, [activeTab, updateUrl]);
 
   // Auto-connect to Safe if in iframe
   useAutoConnect();
@@ -838,6 +910,27 @@ export function App() {
   ];
 
   const validTimelockAddress = isAddress(timelockAddress) ? (timelockAddress as Address) : undefined;
+
+  // Callbacks to update URL from tabs
+  const handleScheduleUpdate = useCallback((ops: UrlOperation[], delay: string) => {
+    updateUrl({ ops, delay });
+  }, [updateUrl]);
+
+  const handleExecuteUpdate = useCallback((ops: UrlOperation[]) => {
+    updateUrl({ ops });
+  }, [updateUrl]);
+
+  const handleDecodeUpdate = useCallback((calldata: string) => {
+    updateUrl({ calldata });
+  }, [updateUrl]);
+
+  const handleHashUpdate = useCallback((target: string, value: string, data: string) => {
+    updateUrl({ target, value, data });
+  }, [updateUrl]);
+
+  const handleCancelUpdate = useCallback((opId: string) => {
+    updateUrl({ opId });
+  }, [updateUrl]);
 
   return (
     <div className="app">
@@ -878,11 +971,42 @@ export function App() {
         </nav>
 
         <div className="tab-panel">
-          {activeTab === 'schedule' && <ScheduleTab timelockAddress={validTimelockAddress} />}
-          {activeTab === 'execute' && <ExecuteTab timelockAddress={validTimelockAddress} />}
-          {activeTab === 'decode' && <DecodeTab />}
-          {activeTab === 'hash' && <HashTab />}
-          {activeTab === 'cancel' && <CancelTab timelockAddress={validTimelockAddress} />}
+          {activeTab === 'schedule' && (
+            <ScheduleTab
+              timelockAddress={validTimelockAddress}
+              initialOps={initialState.ops}
+              initialDelay={initialState.delay}
+              onUpdate={handleScheduleUpdate}
+            />
+          )}
+          {activeTab === 'execute' && (
+            <ExecuteTab
+              timelockAddress={validTimelockAddress}
+              initialOps={initialState.ops}
+              onUpdate={handleExecuteUpdate}
+            />
+          )}
+          {activeTab === 'decode' && (
+            <DecodeTab
+              initialCalldata={initialState.calldata}
+              onUpdate={handleDecodeUpdate}
+            />
+          )}
+          {activeTab === 'hash' && (
+            <HashTab
+              initialTarget={initialState.target}
+              initialValue={initialState.value}
+              initialData={initialState.data}
+              onUpdate={handleHashUpdate}
+            />
+          )}
+          {activeTab === 'cancel' && (
+            <CancelTab
+              timelockAddress={validTimelockAddress}
+              initialOpId={initialState.opId}
+              onUpdate={handleCancelUpdate}
+            />
+          )}
         </div>
       </main>
 

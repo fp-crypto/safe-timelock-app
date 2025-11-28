@@ -4,3 +4,8 @@ export { use4ByteDirectory } from './use4ByteDirectory';
 export { useAbiStorage } from './useAbiStorage';
 export { useDecodeCalldata } from './useDecodeCalldata';
 export type { DecodedInnerCalldata, DecodedParam } from './useDecodeCalldata';
+export { useProxyDetection } from './useProxyDetection';
+export type { ProxyInfo } from './useProxyDetection';
+export { useSourcifyAbi, fetchSourcifyAbi } from './useSourcifyAbi';
+export type { UseSourcifyAbiResult, SourcifyStatus } from './useSourcifyAbi';
+export { useSourcifyDecode } from './useSourcifyDecode';

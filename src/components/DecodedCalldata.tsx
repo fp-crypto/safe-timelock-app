@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { type Hex } from 'viem';
+import { isAddress, type Address, type Hex } from 'viem';
 import { useDecodeCalldata, type DecodedInnerCalldata } from '../hooks';
 import { truncateAddress } from '../lib/selectors';
+import { DecimalTooltip } from './DecimalTooltip';
 
 interface DecodedCalldataProps {
   calldata: Hex | undefined;
@@ -20,6 +21,8 @@ function SourceBadge({ source }: { source: string }) {
   const labels: Record<string, string> = {
     local: 'Built-in',
     'user-abi': 'Custom ABI',
+    sourcify: 'Sourcify',
+    'sourcify-impl': 'Sourcify (impl)',
     '4byte': '4byte.directory',
   };
   return <span className="source-badge">{labels[source] || source}</span>;
@@ -71,6 +74,13 @@ function CopyableValue({
   );
 }
 
+/**
+ * Check if a type is a numeric type that should show decimal tooltip
+ */
+function isNumericType(type: string): boolean {
+  return type.startsWith('uint') || type.startsWith('int');
+}
+
 function ParamsTable({
   params,
 }: {
@@ -87,7 +97,13 @@ function ParamsTable({
         <div key={i} className="params-row">
           <span className="param-name">{param.name || `arg${i}`}</span>
           <span className="param-type">{param.type}</span>
-          <CopyableValue value={String(param.value)} display={param.display} />
+          {isNumericType(param.type) ? (
+            <DecimalTooltip value={param.value}>
+              <CopyableValue value={String(param.value)} display={param.display} />
+            </DecimalTooltip>
+          ) : (
+            <CopyableValue value={String(param.value)} display={param.display} />
+          )}
         </div>
       ))}
     </div>
@@ -174,7 +190,8 @@ function DecodedContent({
 }
 
 export function DecodedCalldata({ calldata, target }: DecodedCalldataProps) {
-  const decoded = useDecodeCalldata(calldata);
+  const validTarget = target && isAddress(target) ? (target as Address) : undefined;
+  const decoded = useDecodeCalldata(calldata, validTarget);
 
   // Don't render anything for empty calldata (0x)
   if (!calldata || calldata === '0x') {
@@ -214,10 +231,13 @@ export function DecodedCalldata({ calldata, target }: DecodedCalldataProps) {
 // Lightweight version for batch operation summaries
 export function DecodedCalldataSummary({
   calldata,
+  target,
 }: {
   calldata: Hex | undefined;
+  target?: string;
 }) {
-  const decoded = useDecodeCalldata(calldata);
+  const validTarget = target && isAddress(target) ? (target as Address) : undefined;
+  const decoded = useDecodeCalldata(calldata, validTarget);
 
   if (!calldata || calldata === '0x') {
     return <span className="decoded-summary-inline">ETH transfer</span>;

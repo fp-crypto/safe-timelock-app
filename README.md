@@ -2,17 +2,27 @@
 
 A web application to create, decode, and execute OpenZeppelin TimelockController transactions when the timelock is owned by a Safe multisig.
 
-![Safe Timelock Tool](./screenshot.png)
-
 ## Features
 
-- **Schedule Operations** - Encode `schedule()` calls with automatic operation ID calculation
-- **Schedule Batch** - Bundle multiple operations into a single `scheduleBatch()` call
-- **Execute Operations** - Encode `execute()` calls after the delay period
+### Core Operations
+- **Schedule Operations** - Encode `schedule()` and `scheduleBatch()` calls with automatic operation ID calculation
+- **Execute Operations** - Encode `execute()` and `executeBatch()` calls after the delay period
 - **Decode Calldata** - Inspect any timelock calldata to see what it does
 - **Calculate Hashes** - Compute operation IDs to check status on-chain
 - **Cancel Operations** - Encode `cancel()` calls for pending operations
 - **Live Status** - Query the timelock contract for operation status (pending/ready/done)
+
+### Smart Calldata Building
+- **Sourcify Integration** - Automatically fetch verified contract ABIs from Sourcify
+- **Proxy Detection** - Detects ERC1967 proxies and fetches implementation ABIs
+- **Function Builder** - Visual interface to select functions and fill in parameters
+- **Custom ABIs** - Store and manage your own contract ABIs for unverified contracts
+
+### Enhanced Decoding
+- **Multi-source Decoding** - Tries local selectors → custom ABIs → Sourcify → 4byte.directory
+- **Decimal Format Tooltips** - Hover over large numbers to see WAD (1e18) and USDC (1e6) formats
+- **Risk Indicators** - Visual warnings for high-risk operations
+- **Parameter Inspection** - Click to expand full values, copy to clipboard
 
 ## How It Works
 
@@ -41,7 +51,7 @@ When used outside of Safe, connect any wallet (MetaMask, WalletConnect, etc.). Y
 ### Prerequisites
 
 - Node.js 18+
-- pnpm, npm, or yarn
+- npm (or pnpm/yarn)
 - A WalletConnect Project ID (get one at [cloud.walletconnect.com](https://cloud.walletconnect.com))
 
 ### Installation
@@ -64,16 +74,20 @@ cp .env.example .env
 npm run dev
 ```
 
+### Building
+
+```bash
+npm run build    # TypeScript check + production build
+npm run preview  # Preview production build locally
+```
+
 ### Deploying as a Safe App
 
-1. Build the app:
-   ```bash
-   npm run build
-   ```
+1. Build the app: `npm run build`
 
 2. Deploy the `dist` folder to a hosting service (Vercel, Netlify, IPFS, etc.)
 
-3. Make sure CORS headers are set (the `manifest.json` must be accessible):
+3. Make sure CORS headers are set:
    ```
    Access-Control-Allow-Origin: *
    Access-Control-Allow-Methods: GET
@@ -90,7 +104,7 @@ npm run dev
 - **React 18** - UI framework
 - **viem** - Ethereum library for encoding/decoding
 - **wagmi v2** - React hooks for Ethereum
-- **@tanstack/react-query** - Data fetching
+- **@tanstack/react-query** - Data fetching and caching
 - **TypeScript** - Type safety
 - **Vite** - Build tool
 
@@ -98,16 +112,26 @@ npm run dev
 
 ```
 src/
+├── components/
+│   ├── AbiManager.tsx       # Custom ABI storage UI
+│   ├── CalldataBuilder.tsx  # Sourcify-powered calldata builder
+│   ├── DecodedCalldata.tsx  # Calldata decoder with risk levels
+│   └── DecimalTooltip.tsx   # Number format tooltip
 ├── config/
-│   └── wagmi.ts          # Wagmi configuration with Safe connector
+│   └── wagmi.ts             # Wagmi config with Safe connector
 ├── hooks/
-│   ├── useAutoConnect.ts # Auto-connect to Safe when in iframe
-│   └── useTimelockStatus.ts # Query timelock operation status
+│   ├── useAutoConnect.ts    # Auto-connect in Safe iframe
+│   ├── useDecodeCalldata.ts # Multi-source calldata decoder
+│   ├── useProxyDetection.ts # ERC1967 proxy detection
+│   ├── useSourcifyAbi.ts    # Sourcify API integration
+│   └── useTimelockStatus.ts # Timelock operation status
 ├── lib/
-│   └── timelock.ts       # Viem-based timelock encoding/decoding
-├── App.tsx               # Main application component
-├── main.tsx              # Entry point with providers
-└── index.css             # Styles
+│   ├── abi-storage.ts       # localStorage ABI management
+│   ├── format-decimals.ts   # Decimal format utilities
+│   ├── selectors.ts         # Known function selectors
+│   └── timelock.ts          # Timelock encoding/decoding
+├── App.tsx                  # Main application
+└── index.css                # Styles
 ```
 
 ## OpenZeppelin Timelock
@@ -135,8 +159,9 @@ Add more chains in `src/config/wagmi.ts`.
 
 - This tool only encodes/decodes calldata - it doesn't execute transactions directly
 - Always verify the decoded calldata before signing
-- The tool queries public RPC endpoints for operation status
+- The tool queries public RPC endpoints and Sourcify for contract data
 - No private keys or sensitive data are stored
+- Custom ABIs are stored in browser localStorage only
 
 ## License
 

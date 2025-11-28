@@ -35,7 +35,7 @@ export interface DecodedParam {
 
 export interface DecodedInnerCalldata {
   status: 'decoded' | 'signature-only' | 'unknown';
-  source: 'local' | 'user-abi' | '4byte' | null;
+  source: 'local' | 'user-abi' | 'sourcify' | 'sourcify-impl' | '4byte' | null;
   selector: Hex;
   functionName?: string;
   signature?: string;

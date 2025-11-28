@@ -25,6 +25,7 @@ import {
 import { chains } from './config/wagmi';
 import { DecodedCalldata, DecodedCalldataSummary } from './components/DecodedCalldata';
 import { AbiManager } from './components/AbiManager';
+import { CalldataBuilder } from './components/CalldataBuilder';
 
 // Wallet Connection Component
 function WalletConnection() {
@@ -318,6 +319,10 @@ function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined
             mono
             helper={!isBatch ? "The encoded function call to execute" : undefined}
           />
+          <CalldataBuilder
+            targetAddress={op.target}
+            onCalldataGenerated={(calldata) => updateOp(i, 'data', calldata)}
+          />
         </div>
       ))}
 
@@ -535,6 +540,10 @@ function ExecuteTab({ timelockAddress }: { timelockAddress: Address | undefined 
             multiline
             mono
           />
+          <CalldataBuilder
+            targetAddress={op.target}
+            onCalldataGenerated={(calldata) => updateOp(i, 'data', calldata)}
+          />
         </div>
       ))}
 
@@ -586,7 +595,7 @@ function BatchOperationItem({
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <span className="batch-op-index">#{index + 1}</span>
-        <DecodedCalldataSummary calldata={operation.data} />
+        <DecodedCalldataSummary calldata={operation.data} target={operation.target} />
         <span className="batch-op-expand">{isExpanded ? '▼' : '▶'}</span>
       </div>
       {isExpanded && (

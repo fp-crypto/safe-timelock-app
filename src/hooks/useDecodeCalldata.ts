@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Hex } from 'viem';
+import type { Address, Hex } from 'viem';
 import { decodeFunctionData, decodeAbiParameters, parseAbiParameters } from 'viem';
 import {
   getSelector,
@@ -10,6 +10,7 @@ import {
 } from '../lib/selectors';
 import { findAbiBySelector, getFunctionFromAbi } from '../lib/abi-storage';
 import { use4ByteDirectory } from './use4ByteDirectory';
+import { useSourcifyDecode } from './useSourcifyDecode';
 
 export type { DecodedInnerCalldata, DecodedParam };
 
@@ -100,10 +101,12 @@ function decodeWith4ByteSignature(
  * Hook to decode inner calldata using multiple sources:
  * 1. Local known selectors (instant)
  * 2. User-stored ABIs (instant)
- * 3. 4byte.directory API (async, signature only)
+ * 3. Sourcify (target address, then implementation if proxy)
+ * 4. 4byte.directory API (async, signature only)
  */
 export function useDecodeCalldata(
-  calldata: Hex | undefined | null
+  calldata: Hex | undefined | null,
+  target?: Address
 ): DecodedInnerCalldata & { isLoading: boolean } {
   const selector = useMemo(
     () => (calldata ? getSelector(calldata) : null),
@@ -169,8 +172,20 @@ export function useDecodeCalldata(
     }
   }, [localResult, calldata, selector]);
 
-  // Only query 4byte if local and user ABI didn't match
-  const shouldQuery4Byte = !localResult && !userAbiResult && !!selector;
+  // Try Sourcify (only if local and user ABI didn't match and target is provided)
+  const skipSourcify = !!localResult || !!userAbiResult || !target;
+  const {
+    decoded: sourcifyResult,
+    isLoading: sourcifyLoading,
+  } = useSourcifyDecode(
+    calldata as Hex | undefined,
+    target,
+    selector,
+    skipSourcify
+  );
+
+  // Only query 4byte if local, user ABI, and Sourcify didn't match
+  const shouldQuery4Byte = !localResult && !userAbiResult && !sourcifyResult && !!selector;
   const {
     data: fourByteSignature,
     isLoading: fourByteLoading,
@@ -186,6 +201,11 @@ export function useDecodeCalldata(
     // Return user ABI result if found
     if (userAbiResult) {
       return userAbiResult;
+    }
+
+    // Return Sourcify result if found
+    if (sourcifyResult) {
+      return sourcifyResult;
     }
 
     // If no selector (empty/invalid calldata)
@@ -231,10 +251,13 @@ export function useDecodeCalldata(
       source: null,
       selector,
     };
-  }, [localResult, userAbiResult, selector, fourByteSignature]);
+  }, [localResult, userAbiResult, sourcifyResult, selector, fourByteSignature, calldata]);
+
+  // Loading if Sourcify is loading or 4byte is loading
+  const isLoading = (!skipSourcify && sourcifyLoading) || (shouldQuery4Byte && fourByteLoading);
 
   return {
     ...result,
-    isLoading: shouldQuery4Byte && fourByteLoading,
+    isLoading,
   };
 }

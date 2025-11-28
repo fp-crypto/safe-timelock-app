@@ -937,7 +937,7 @@ body {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  overflow: hidden;
+  overflow: visible;
   font-size: 0.8rem;
 }
 

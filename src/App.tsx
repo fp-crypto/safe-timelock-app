@@ -202,11 +202,9 @@ function StatusDisplay({
   );
 }
 
-// Schedule Tab
+// Schedule Tab (unified - handles both single and batch)
 function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined }) {
-  const [target, setTarget] = useState('');
-  const [value, setValue] = useState('0');
-  const [data, setData] = useState('0x');
+  const [operations, setOperations] = useState([{ target: '', value: '0', data: '0x' }]);
   const [predecessor, setPredecessor] = useState<string>(zeroHash);
   const [salt, setSalt] = useState<string>(zeroHash);
   const [delay, setDelay] = useState('86400');
@@ -219,25 +217,54 @@ function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined
 
   const { minDelay } = useMinDelay(timelockAddress);
 
+  const addOperation = () => setOperations([...operations, { target: '', value: '0', data: '0x' }]);
+  const removeOperation = (i: number) => setOperations(operations.filter((_, idx) => idx !== i));
+  const updateOp = (i: number, field: string, val: string) => {
+    const updated = [...operations];
+    (updated[i] as any)[field] = val;
+    setOperations(updated);
+  };
+
   const encode = useCallback(() => {
     try {
       setError('');
-      if (!isAddress(target)) throw new Error('Invalid target address');
 
-      const result = encodeSchedule(
-        target as Address,
-        BigInt(value),
-        data as Hex,
-        predecessor as Hex,
-        salt as Hex,
-        BigInt(delay)
-      );
+      // Validate all addresses
+      const targets = operations.map((op) => {
+        if (!isAddress(op.target)) throw new Error(`Invalid address: ${op.target || '(empty)'}`);
+        return op.target as Address;
+      });
+      const values = operations.map((op) => BigInt(op.value));
+      const payloads = operations.map((op) => op.data as Hex);
+
+      let result;
+      if (operations.length === 1) {
+        // Single operation - use schedule()
+        result = encodeSchedule(
+          targets[0],
+          values[0],
+          payloads[0],
+          predecessor as Hex,
+          salt as Hex,
+          BigInt(delay)
+        );
+      } else {
+        // Multiple operations - use scheduleBatch()
+        result = encodeScheduleBatch(
+          targets,
+          values,
+          payloads,
+          predecessor as Hex,
+          salt as Hex,
+          BigInt(delay)
+        );
+      }
       setOutput({ calldata: result.calldata, operationId: result.operationId });
     } catch (err: any) {
       setError(err.message);
       setOutput({ calldata: '', operationId: '' });
     }
-  }, [target, value, data, predecessor, salt, delay]);
+  }, [operations, predecessor, salt, delay]);
 
   const submit = () => {
     if (!timelockAddress || !output.calldata) return;
@@ -247,32 +274,57 @@ function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined
     });
   };
 
+  const isBatch = operations.length > 1;
+
   return (
     <div className="tab-content">
       <div className="tab-header">
-        <h3>Schedule Operation</h3>
+        <h3>Schedule Operation{isBatch ? 's' : ''}</h3>
         <p>
-          Encode a <code>schedule()</code> call for the TimelockController.
+          Encode a <code>{isBatch ? 'scheduleBatch()' : 'schedule()'}</code> call for the TimelockController.
         </p>
       </div>
 
-      <InputField label="Target Address" value={target} onChange={setTarget} placeholder="0x..." mono />
-      <InputField
-        label="Value (wei)"
-        value={value}
-        onChange={setValue}
-        placeholder="0"
-        helper="Amount of ETH to send with the call"
-      />
-      <InputField
-        label="Calldata"
-        value={data}
-        onChange={setData}
-        placeholder="0x..."
-        multiline
-        mono
-        helper="The encoded function call to execute"
-      />
+      {operations.map((op, i) => (
+        <div key={i} className="operation-card">
+          {isBatch && (
+            <div className="operation-header">
+              <span>Operation {i + 1}</span>
+              <button onClick={() => removeOperation(i)} className="remove-btn">
+                ✕
+              </button>
+            </div>
+          )}
+          <InputField
+            label="Target Address"
+            value={op.target}
+            onChange={(v) => updateOp(i, 'target', v)}
+            placeholder="0x..."
+            mono
+          />
+          <InputField
+            label="Value (wei)"
+            value={op.value}
+            onChange={(v) => updateOp(i, 'value', v)}
+            placeholder="0"
+            helper={!isBatch ? "Amount of ETH to send with the call" : undefined}
+          />
+          <InputField
+            label="Calldata"
+            value={op.data}
+            onChange={(v) => updateOp(i, 'data', v)}
+            placeholder="0x..."
+            multiline
+            mono
+            helper={!isBatch ? "The encoded function call to execute" : undefined}
+          />
+        </div>
+      ))}
+
+      <button onClick={addOperation} className="btn btn-secondary add-op-btn">
+        + Add Operation
+      </button>
+
       <InputField
         label="Predecessor"
         value={predecessor}
@@ -301,7 +353,7 @@ function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined
 
       <div className="actions">
         <button onClick={encode} className="btn btn-primary">
-          Encode Schedule
+          Encode {isBatch ? 'Batch' : 'Schedule'}
         </button>
         {output.calldata && isConnected && timelockAddress && (
           <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
@@ -314,7 +366,7 @@ function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined
       {error && <div className="error-message">{error}</div>}
 
       <OutputDisplay label="Operation ID" value={output.operationId} />
-      <OutputDisplay label="Schedule Calldata" value={output.calldata} />
+      <OutputDisplay label={isBatch ? 'Batch Calldata' : 'Schedule Calldata'} value={output.calldata} />
 
       {output.operationId && (
         <StatusDisplay
@@ -326,245 +378,9 @@ function ScheduleTab({ timelockAddress }: { timelockAddress: Address | undefined
   );
 }
 
-// Schedule Batch Tab
-function ScheduleBatchTab({ timelockAddress }: { timelockAddress: Address | undefined }) {
-  const [operations, setOperations] = useState([{ target: '', value: '0', data: '0x' }]);
-  const [predecessor, setPredecessor] = useState<string>(zeroHash);
-  const [salt, setSalt] = useState<string>(zeroHash);
-  const [delay, setDelay] = useState('86400');
-  const [output, setOutput] = useState({ calldata: '', operationId: '' });
-  const [error, setError] = useState('');
-
-  const { isConnected } = useAccount();
-  const { sendTransaction, data: txHash, isPending } = useSendTransaction();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-
-  const addOperation = () => setOperations([...operations, { target: '', value: '0', data: '0x' }]);
-  const removeOperation = (i: number) => setOperations(operations.filter((_, idx) => idx !== i));
-  const updateOp = (i: number, field: string, val: string) => {
-    const updated = [...operations];
-    (updated[i] as any)[field] = val;
-    setOperations(updated);
-  };
-
-  const encode = useCallback(() => {
-    try {
-      setError('');
-      const targets = operations.map((op) => {
-        if (!isAddress(op.target)) throw new Error(`Invalid address: ${op.target}`);
-        return op.target as Address;
-      });
-      const values = operations.map((op) => BigInt(op.value));
-      const payloads = operations.map((op) => op.data as Hex);
-
-      const result = encodeScheduleBatch(
-        targets,
-        values,
-        payloads,
-        predecessor as Hex,
-        salt as Hex,
-        BigInt(delay)
-      );
-      setOutput({ calldata: result.calldata, operationId: result.operationId });
-    } catch (err: any) {
-      setError(err.message);
-      setOutput({ calldata: '', operationId: '' });
-    }
-  }, [operations, predecessor, salt, delay]);
-
-  const submit = () => {
-    if (!timelockAddress || !output.calldata) return;
-    sendTransaction({ to: timelockAddress, data: output.calldata as Hex });
-  };
-
-  return (
-    <div className="tab-content">
-      <div className="tab-header">
-        <h3>Schedule Batch</h3>
-        <p>
-          Encode a <code>scheduleBatch()</code> for multiple operations atomically.
-        </p>
-      </div>
-
-      {operations.map((op, i) => (
-        <div key={i} className="operation-card">
-          <div className="operation-header">
-            <span>Operation {i + 1}</span>
-            {operations.length > 1 && (
-              <button onClick={() => removeOperation(i)} className="remove-btn">
-                ✕
-              </button>
-            )}
-          </div>
-          <InputField
-            label="Target"
-            value={op.target}
-            onChange={(v) => updateOp(i, 'target', v)}
-            placeholder="0x..."
-            mono
-          />
-          <InputField
-            label="Value"
-            value={op.value}
-            onChange={(v) => updateOp(i, 'value', v)}
-            placeholder="0"
-          />
-          <InputField
-            label="Data"
-            value={op.data}
-            onChange={(v) => updateOp(i, 'data', v)}
-            placeholder="0x..."
-            mono
-          />
-        </div>
-      ))}
-
-      <button onClick={addOperation} className="btn btn-secondary add-op-btn">
-        + Add Operation
-      </button>
-
-      <InputField label="Predecessor" value={predecessor} onChange={setPredecessor} mono />
-      <div className="input-row">
-        <InputField label="Salt" value={salt} onChange={setSalt} mono />
-        <button onClick={() => setSalt(generateRandomSalt())} className="btn btn-secondary">
-          Random
-        </button>
-      </div>
-      <InputField label="Delay (seconds)" value={delay} onChange={setDelay} />
-
-      <div className="actions">
-        <button onClick={encode} className="btn btn-primary">
-          Encode Batch
-        </button>
-        {output.calldata && isConnected && timelockAddress && (
-          <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
-            {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : 'Submit to Safe'}
-          </button>
-        )}
-      </div>
-
-      {isSuccess && <div className="success-message">Transaction submitted!</div>}
-      {error && <div className="error-message">{error}</div>}
-
-      <OutputDisplay label="Operation ID" value={output.operationId} />
-      <OutputDisplay label="Batch Calldata" value={output.calldata} />
-    </div>
-  );
-}
-
-// Execute Tab
+// Execute Tab (unified - handles both single and batch)
 function ExecuteTab({ timelockAddress }: { timelockAddress: Address | undefined }) {
   const [importCalldata, setImportCalldata] = useState('');
-  const [target, setTarget] = useState('');
-  const [value, setValue] = useState('0');
-  const [data, setData] = useState('0x');
-  const [predecessor, setPredecessor] = useState<string>(zeroHash);
-  const [salt, setSalt] = useState<string>(zeroHash);
-  const [output, setOutput] = useState({ calldata: '', operationId: '' });
-  const [error, setError] = useState('');
-
-  const { isConnected } = useAccount();
-  const { sendTransaction, data: txHash, isPending } = useSendTransaction();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-
-  const handleImport = useCallback(() => {
-    try {
-      setError('');
-      const decoded = decodeTimelockCalldata(importCalldata as Hex);
-      if (!decoded) throw new Error('Could not decode calldata');
-      if (decoded.functionName !== 'schedule') {
-        throw new Error(`Expected schedule() calldata, got ${decoded.functionName}()`);
-      }
-      setTarget(decoded.target || '');
-      setValue(decoded.value || '0');
-      setData(decoded.data || '0x');
-      setPredecessor(decoded.predecessor || zeroHash);
-      setSalt(decoded.salt || zeroHash);
-      setImportCalldata('');
-    } catch (err: any) {
-      setError(err.message);
-    }
-  }, [importCalldata]);
-
-  const encode = useCallback(() => {
-    try {
-      setError('');
-      if (!isAddress(target)) throw new Error('Invalid target address');
-      const result = encodeExecute(
-        target as Address,
-        BigInt(value),
-        data as Hex,
-        predecessor as Hex,
-        salt as Hex
-      );
-      setOutput({ calldata: result.calldata, operationId: result.operationId });
-    } catch (err: any) {
-      setError(err.message);
-      setOutput({ calldata: '', operationId: '' });
-    }
-  }, [target, value, data, predecessor, salt]);
-
-  const submit = () => {
-    if (!timelockAddress || !output.calldata) return;
-    sendTransaction({ to: timelockAddress, data: output.calldata as Hex, value: BigInt(value) });
-  };
-
-  return (
-    <div className="tab-content">
-      <div className="tab-header">
-        <h3>Execute Operation</h3>
-        <p>
-          Encode an <code>execute()</code> call. Use the same params from scheduling.
-        </p>
-      </div>
-
-      <div className="import-section">
-        <InputField
-          label="Import from Schedule Calldata"
-          value={importCalldata}
-          onChange={setImportCalldata}
-          placeholder="Paste schedule() calldata to auto-fill fields..."
-          multiline
-          mono
-        />
-        <button onClick={handleImport} disabled={!importCalldata} className="btn btn-secondary">
-          Import
-        </button>
-      </div>
-
-      <InputField label="Target Address" value={target} onChange={setTarget} placeholder="0x..." mono />
-      <InputField label="Value (wei)" value={value} onChange={setValue} placeholder="0" />
-      <InputField label="Calldata" value={data} onChange={setData} placeholder="0x..." multiline mono />
-      <InputField label="Predecessor" value={predecessor} onChange={setPredecessor} mono />
-      <InputField label="Salt" value={salt} onChange={setSalt} mono />
-
-      <div className="actions">
-        <button onClick={encode} className="btn btn-warning">
-          Encode Execute
-        </button>
-        {output.calldata && isConnected && timelockAddress && (
-          <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
-            {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : 'Submit to Safe'}
-          </button>
-        )}
-      </div>
-
-      {isSuccess && <div className="success-message">Transaction submitted!</div>}
-      {error && <div className="error-message">{error}</div>}
-
-      <OutputDisplay label="Operation ID" value={output.operationId} />
-      <OutputDisplay label="Execute Calldata" value={output.calldata} />
-
-      {output.operationId && (
-        <StatusDisplay timelockAddress={timelockAddress} operationId={output.operationId as Hex} />
-      )}
-    </div>
-  );
-}
-
-// Execute Batch Tab
-function ExecuteBatchTab({ timelockAddress }: { timelockAddress: Address | undefined }) {
-  const [importCalldata, setImportCalldata] = useState('');
   const [operations, setOperations] = useState([{ target: '', value: '0', data: '0x' }]);
   const [predecessor, setPredecessor] = useState<string>(zeroHash);
   const [salt, setSalt] = useState<string>(zeroHash);
@@ -575,30 +391,6 @@ function ExecuteBatchTab({ timelockAddress }: { timelockAddress: Address | undef
   const { sendTransaction, data: txHash, isPending } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const handleImport = useCallback(() => {
-    try {
-      setError('');
-      const decoded = decodeTimelockCalldata(importCalldata as Hex);
-      if (!decoded) throw new Error('Could not decode calldata');
-      if (decoded.functionName !== 'scheduleBatch') {
-        throw new Error(`Expected scheduleBatch() calldata, got ${decoded.functionName}()`);
-      }
-      if (!decoded.operations || decoded.operations.length === 0) {
-        throw new Error('No operations found in calldata');
-      }
-      setOperations(decoded.operations.map(op => ({
-        target: op.target,
-        value: op.value,
-        data: op.data,
-      })));
-      setPredecessor(decoded.predecessor || zeroHash);
-      setSalt(decoded.salt || zeroHash);
-      setImportCalldata('');
-    } catch (err: any) {
-      setError(err.message);
-    }
-  }, [importCalldata]);
-
   const addOperation = () => setOperations([...operations, { target: '', value: '0', data: '0x' }]);
   const removeOperation = (i: number) => setOperations(operations.filter((_, idx) => idx !== i));
   const updateOp = (i: number, field: string, val: string) => {
@@ -607,23 +399,73 @@ function ExecuteBatchTab({ timelockAddress }: { timelockAddress: Address | undef
     setOperations(updated);
   };
 
+  const handleImport = useCallback(() => {
+    try {
+      setError('');
+      const decoded = decodeTimelockCalldata(importCalldata as Hex);
+      if (!decoded) throw new Error('Could not decode calldata');
+
+      if (decoded.functionName === 'schedule') {
+        // Single operation import
+        setOperations([{
+          target: decoded.target || '',
+          value: decoded.value || '0',
+          data: decoded.data || '0x',
+        }]);
+      } else if (decoded.functionName === 'scheduleBatch') {
+        // Batch operation import
+        if (!decoded.operations || decoded.operations.length === 0) {
+          throw new Error('No operations found in calldata');
+        }
+        setOperations(decoded.operations.map(op => ({
+          target: op.target,
+          value: op.value,
+          data: op.data,
+        })));
+      } else {
+        throw new Error(`Expected schedule() or scheduleBatch() calldata, got ${decoded.functionName}()`);
+      }
+
+      setPredecessor(decoded.predecessor || zeroHash);
+      setSalt(decoded.salt || zeroHash);
+      setImportCalldata('');
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }, [importCalldata]);
+
   const encode = useCallback(() => {
     try {
       setError('');
+
+      // Validate all addresses
       const targets = operations.map((op) => {
-        if (!isAddress(op.target)) throw new Error(`Invalid address: ${op.target}`);
+        if (!isAddress(op.target)) throw new Error(`Invalid address: ${op.target || '(empty)'}`);
         return op.target as Address;
       });
       const values = operations.map((op) => BigInt(op.value));
       const payloads = operations.map((op) => op.data as Hex);
 
-      const result = encodeExecuteBatch(
-        targets,
-        values,
-        payloads,
-        predecessor as Hex,
-        salt as Hex
-      );
+      let result;
+      if (operations.length === 1) {
+        // Single operation - use execute()
+        result = encodeExecute(
+          targets[0],
+          values[0],
+          payloads[0],
+          predecessor as Hex,
+          salt as Hex
+        );
+      } else {
+        // Multiple operations - use executeBatch()
+        result = encodeExecuteBatch(
+          targets,
+          values,
+          payloads,
+          predecessor as Hex,
+          salt as Hex
+        );
+      }
       setOutput({ calldata: result.calldata, operationId: result.operationId });
     } catch (err: any) {
       setError(err.message);
@@ -637,21 +479,23 @@ function ExecuteBatchTab({ timelockAddress }: { timelockAddress: Address | undef
     sendTransaction({ to: timelockAddress, data: output.calldata as Hex, value: totalValue });
   };
 
+  const isBatch = operations.length > 1;
+
   return (
     <div className="tab-content">
       <div className="tab-header">
-        <h3>Execute Batch</h3>
+        <h3>Execute Operation{isBatch ? 's' : ''}</h3>
         <p>
-          Encode an <code>executeBatch()</code> to execute multiple operations atomically.
+          Encode an <code>{isBatch ? 'executeBatch()' : 'execute()'}</code> call. Use the same params from scheduling.
         </p>
       </div>
 
       <div className="import-section">
         <InputField
-          label="Import from Schedule Batch Calldata"
+          label="Import from Schedule Calldata"
           value={importCalldata}
           onChange={setImportCalldata}
-          placeholder="Paste scheduleBatch() calldata to auto-fill fields..."
+          placeholder="Paste schedule() or scheduleBatch() calldata to auto-fill fields..."
           multiline
           mono
         />
@@ -662,32 +506,33 @@ function ExecuteBatchTab({ timelockAddress }: { timelockAddress: Address | undef
 
       {operations.map((op, i) => (
         <div key={i} className="operation-card">
-          <div className="operation-header">
-            <span>Operation {i + 1}</span>
-            {operations.length > 1 && (
+          {isBatch && (
+            <div className="operation-header">
+              <span>Operation {i + 1}</span>
               <button onClick={() => removeOperation(i)} className="remove-btn">
                 ✕
               </button>
-            )}
-          </div>
+            </div>
+          )}
           <InputField
-            label="Target"
+            label="Target Address"
             value={op.target}
             onChange={(v) => updateOp(i, 'target', v)}
             placeholder="0x..."
             mono
           />
           <InputField
-            label="Value"
+            label="Value (wei)"
             value={op.value}
             onChange={(v) => updateOp(i, 'value', v)}
             placeholder="0"
           />
           <InputField
-            label="Data"
+            label="Calldata"
             value={op.data}
             onChange={(v) => updateOp(i, 'data', v)}
             placeholder="0x..."
+            multiline
             mono
           />
         </div>
@@ -702,7 +547,7 @@ function ExecuteBatchTab({ timelockAddress }: { timelockAddress: Address | undef
 
       <div className="actions">
         <button onClick={encode} className="btn btn-warning">
-          Encode Execute Batch
+          Encode {isBatch ? 'Execute Batch' : 'Execute'}
         </button>
         {output.calldata && isConnected && timelockAddress && (
           <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
@@ -715,7 +560,7 @@ function ExecuteBatchTab({ timelockAddress }: { timelockAddress: Address | undef
       {error && <div className="error-message">{error}</div>}
 
       <OutputDisplay label="Operation ID" value={output.operationId} />
-      <OutputDisplay label="Execute Batch Calldata" value={output.calldata} />
+      <OutputDisplay label={isBatch ? 'Execute Batch Calldata' : 'Execute Calldata'} value={output.calldata} />
 
       {output.operationId && (
         <StatusDisplay timelockAddress={timelockAddress} operationId={output.operationId as Hex} />
@@ -977,9 +822,7 @@ export function App() {
 
   const tabs = [
     { id: 'schedule', label: 'Schedule', icon: '📅' },
-    { id: 'schedule-batch', label: 'Schedule Batch', icon: '📦' },
     { id: 'execute', label: 'Execute', icon: '▶️' },
-    { id: 'execute-batch', label: 'Execute Batch', icon: '⏩' },
     { id: 'decode', label: 'Decode', icon: '🔍' },
     { id: 'hash', label: 'Hash', icon: '#️⃣' },
     { id: 'cancel', label: 'Cancel', icon: '🚫' },
@@ -1027,9 +870,7 @@ export function App() {
 
         <div className="tab-panel">
           {activeTab === 'schedule' && <ScheduleTab timelockAddress={validTimelockAddress} />}
-          {activeTab === 'schedule-batch' && <ScheduleBatchTab timelockAddress={validTimelockAddress} />}
           {activeTab === 'execute' && <ExecuteTab timelockAddress={validTimelockAddress} />}
-          {activeTab === 'execute-batch' && <ExecuteBatchTab timelockAddress={validTimelockAddress} />}
           {activeTab === 'decode' && <DecodeTab />}
           {activeTab === 'hash' && <HashTab />}
           {activeTab === 'cancel' && <CancelTab timelockAddress={validTimelockAddress} />}

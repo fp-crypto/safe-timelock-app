@@ -27,6 +27,9 @@ import { chains } from './config/wagmi';
 import { DecodedCalldata, DecodedCalldataSummary } from './components/DecodedCalldata';
 import { AbiManager } from './components/AbiManager';
 import { CalldataBuilder } from './components/CalldataBuilder';
+import { PendingSafeTransactions } from './components/PendingSafeTransactions';
+import { ScheduledOperations } from './components/ScheduledOperations';
+import type { DecodedTimelock } from './lib/timelock';
 
 // Wallet Connection Component
 function WalletConnection() {
@@ -466,6 +469,25 @@ function ExecuteTab({
     }
   }, [importCalldata]);
 
+  const handleSelectScheduled = useCallback((decoded: DecodedTimelock) => {
+    setError('');
+    if (decoded.functionName === 'schedule') {
+      setOperations([{
+        target: decoded.target || '',
+        value: decoded.value || '0',
+        data: decoded.data || '0x',
+      }]);
+    } else if (decoded.functionName === 'scheduleBatch' && decoded.operations) {
+      setOperations(decoded.operations.map(op => ({
+        target: op.target,
+        value: op.value,
+        data: op.data,
+      })));
+    }
+    setPredecessor(decoded.predecessor || zeroHash);
+    setSalt(decoded.salt || zeroHash);
+  }, []);
+
   const encode = useCallback(() => {
     try {
       setError('');
@@ -521,6 +543,11 @@ function ExecuteTab({
           Encode an <code>{isBatch ? 'executeBatch()' : 'execute()'}</code> call. Use the same params from scheduling.
         </p>
       </div>
+
+      <ScheduledOperations
+        timelockAddress={timelockAddress || ''}
+        onSelect={handleSelectScheduled}
+      />
 
       <div className="import-section">
         <InputField
@@ -646,9 +673,11 @@ function BatchOperationItem({
 function DecodeTab({
   initialCalldata,
   onUpdate,
+  timelockAddress,
 }: {
   initialCalldata: string;
   onUpdate: (calldata: string) => void;
+  timelockAddress: string;
 }) {
   const [calldata, setCalldata] = useState(initialCalldata);
   const [decoded, setDecoded] = useState<ReturnType<typeof decodeTimelockCalldata>>(null);
@@ -670,12 +699,23 @@ function DecodeTab({
     }
   }, [calldata]);
 
+  const handleSelectPendingTx = useCallback((data: string) => {
+    setCalldata(data);
+    setDecoded(null);
+    setError('');
+  }, []);
+
   return (
     <div className="tab-content">
       <div className="tab-header">
         <h3>Decode Calldata</h3>
         <p>Paste TimelockController calldata to decode and inspect it.</p>
       </div>
+
+      <PendingSafeTransactions
+        timelockAddress={timelockAddress}
+        onSelect={handleSelectPendingTx}
+      />
 
       <InputField
         label="Calldata"
@@ -990,6 +1030,7 @@ export function App() {
             <DecodeTab
               initialCalldata={initialState.calldata}
               onUpdate={handleDecodeUpdate}
+              timelockAddress={timelockAddress}
             />
           )}
           {activeTab === 'hash' && (

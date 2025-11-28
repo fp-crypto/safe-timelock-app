@@ -11,3 +11,7 @@ export type { UseSourcifyAbiResult, SourcifyStatus } from './useSourcifyAbi';
 export { useSourcifyDecode } from './useSourcifyDecode';
 export { useUrlState } from './useUrlState';
 export type { UrlState, Operation as UrlOperation } from './useUrlState';
+export { usePendingSafeTransactions, filterTimelockTransactions, fetchExecutedTransactions } from './usePendingSafeTransactions';
+export type { SafeTransaction, FilteredSafeTransaction } from './usePendingSafeTransactions';
+export { useScheduledOperations } from './useScheduledOperations';
+export type { ScheduledOperation } from './useScheduledOperations';

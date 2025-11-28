@@ -4,10 +4,133 @@ import {
   keccak256,
   encodeFunctionData,
   decodeFunctionData,
+  decodeAbiParameters,
   type Hex,
   type Address,
   zeroHash,
 } from 'viem';
+
+// Known Safe MultiSend contract addresses (same across networks)
+const MULTISEND_ADDRESSES = new Set([
+  '0x40a2accbd92bca938b02010e17a5b8929b49130d', // MultiSend 1.3.0
+  '0xa238cbeb142c10ef7ad8442c6d1f9e89e07e7761', // MultiSend Call Only 1.3.0
+  '0x38869bf66a61cf6bdb996a6ae40d5853fd43b526', // MultiSend 1.4.1
+  '0x9641d764fc13c8b624c04430c7356c1c7c8102e2', // MultiSend Call Only 1.4.1
+].map(a => a.toLowerCase()));
+
+// MultiSend function selector: multiSend(bytes)
+const MULTISEND_SELECTOR = '0x8d80ff0a';
+
+export interface MultiSendTransaction {
+  operation: number;
+  to: Address;
+  value: bigint;
+  data: Hex;
+}
+
+// Decode MultiSend transactions from packed bytes
+export function decodeMultiSend(data: Hex): MultiSendTransaction[] {
+  // Check for multiSend selector
+  if (!data.toLowerCase().startsWith(MULTISEND_SELECTOR)) {
+    return [];
+  }
+
+  try {
+    // Decode the bytes parameter
+    const [packedTxs] = decodeAbiParameters(
+      [{ name: 'transactions', type: 'bytes' }],
+      `0x${data.slice(10)}` as Hex
+    );
+
+    const transactions: MultiSendTransaction[] = [];
+    let offset = 0;
+    const bytes = packedTxs as Hex;
+    const bytesArray = hexToBytes(bytes);
+
+    while (offset < bytesArray.length) {
+      // 1 byte operation
+      const operation = bytesArray[offset];
+      offset += 1;
+
+      // 20 bytes address
+      const to = bytesToHex(bytesArray.slice(offset, offset + 20)) as Address;
+      offset += 20;
+
+      // 32 bytes value (big endian)
+      const valueBytes = bytesArray.slice(offset, offset + 32);
+      const value = bytesToBigInt(valueBytes);
+      offset += 32;
+
+      // 32 bytes data length (big endian)
+      const dataLenBytes = bytesArray.slice(offset, offset + 32);
+      const dataLen = Number(bytesToBigInt(dataLenBytes));
+      offset += 32;
+
+      // data
+      const txData = bytesToHex(bytesArray.slice(offset, offset + dataLen)) as Hex;
+      offset += dataLen;
+
+      transactions.push({ operation, to, value, data: txData });
+    }
+
+    return transactions;
+  } catch {
+    return [];
+  }
+}
+
+// Check if address is a known MultiSend contract
+export function isMultiSendAddress(address: string): boolean {
+  return MULTISEND_ADDRESSES.has(address.toLowerCase());
+}
+
+// Extract timelock calldata from a Safe transaction (handles MultiSend)
+export function extractTimelockCalldata(
+  to: string,
+  data: Hex,
+  timelockAddress: string
+): Hex | null {
+  const normalizedTimelock = timelockAddress.toLowerCase();
+
+  // Direct call to timelock
+  if (to.toLowerCase() === normalizedTimelock) {
+    return data;
+  }
+
+  // Check if it's a MultiSend call
+  if (isMultiSendAddress(to)) {
+    const txs = decodeMultiSend(data);
+    // Find the transaction targeting the timelock
+    const timelockTx = txs.find(tx => tx.to.toLowerCase() === normalizedTimelock);
+    if (timelockTx) {
+      return timelockTx.data;
+    }
+  }
+
+  return null;
+}
+
+// Helper functions for byte manipulation
+function hexToBytes(hex: Hex): Uint8Array {
+  const str = hex.startsWith('0x') ? hex.slice(2) : hex;
+  const bytes = new Uint8Array(str.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(str.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): Hex {
+  return `0x${Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')}` as Hex;
+}
+
+function bytesToBigInt(bytes: Uint8Array): bigint {
+  let result = 0n;
+  for (const byte of bytes) {
+    result = (result << 8n) | BigInt(byte);
+  }
+  return result;
+}
 
 // OpenZeppelin TimelockController ABI
 export const TIMELOCK_ABI = [

@@ -13,6 +13,7 @@ export interface UrlState {
   delay: string;
   opId: string;
   calldata: string;
+  decode: boolean;
   target: string;
   value: string;
   data: string;
@@ -25,6 +26,7 @@ const DEFAULT_STATE: UrlState = {
   delay: '86400',
   opId: '',
   calldata: '',
+  decode: false,
   target: '',
   value: '0',
   data: '0x',
@@ -83,6 +85,9 @@ function parseUrlState(): Partial<UrlState> {
   const calldata = params.get('calldata');
   if (calldata) state.calldata = calldata;
 
+  const decode = params.get('decode');
+  if (decode === '1' || decode === 'true') state.decode = true;
+
   const target = params.get('target');
   if (target) state.target = target;
 
@@ -123,6 +128,10 @@ function buildUrl(state: Partial<UrlState>): string {
 
   if (state.calldata && state.calldata !== '0x') {
     params.set('calldata', state.calldata);
+  }
+
+  if (state.decode) {
+    params.set('decode', '1');
   }
 
   if (state.target) {

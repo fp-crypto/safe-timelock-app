@@ -706,20 +706,23 @@ function BatchOperationItem({
 // Decode Tab
 function DecodeTab({
   initialCalldata,
+  initialDecode,
   onUpdate,
   timelockAddress,
 }: {
   initialCalldata: string;
-  onUpdate: (calldata: string) => void;
+  initialDecode: boolean;
+  onUpdate: (calldata: string, decode: boolean) => void;
   timelockAddress: string;
 }) {
   const [calldata, setCalldata] = useState(initialCalldata);
   const [decoded, setDecoded] = useState<ReturnType<typeof decodeTimelockCalldata>>(null);
   const [error, setError] = useState('');
+  const [hasAutoDecoded, setHasAutoDecoded] = useState(false);
 
   useEffect(() => {
-    onUpdate(calldata);
-  }, [calldata, onUpdate]);
+    onUpdate(calldata, decoded !== null);
+  }, [calldata, decoded, onUpdate]);
 
   const decode = useCallback(() => {
     try {
@@ -732,6 +735,14 @@ function DecodeTab({
       setDecoded(null);
     }
   }, [calldata]);
+
+  // Auto-decode on mount if initialDecode is true and we have calldata
+  useEffect(() => {
+    if (initialDecode && initialCalldata && !hasAutoDecoded) {
+      setHasAutoDecoded(true);
+      decode();
+    }
+  }, [initialDecode, initialCalldata, hasAutoDecoded, decode]);
 
   const handleSelectPendingTx = useCallback((data: string) => {
     setCalldata(data);
@@ -1131,8 +1142,8 @@ export function App() {
     updateUrl({ ops });
   }, [updateUrl]);
 
-  const handleDecodeUpdate = useCallback((calldata: string) => {
-    updateUrl({ calldata });
+  const handleDecodeUpdate = useCallback((calldata: string, decode: boolean) => {
+    updateUrl({ calldata, decode });
   }, [updateUrl]);
 
   const handleHashUpdate = useCallback((target: string, value: string, data: string) => {
@@ -1200,6 +1211,7 @@ export function App() {
           {activeTab === 'decode' && (
             <DecodeTab
               initialCalldata={initialState.calldata}
+              initialDecode={initialState.decode}
               onUpdate={handleDecodeUpdate}
               timelockAddress={timelockAddress}
             />

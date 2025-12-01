@@ -150,6 +150,10 @@ function parseParamValue(value: string, type: string): unknown {
     if (trimmed.startsWith('[')) {
       return JSON.parse(trimmed);
     }
+    // Empty input = empty array
+    if (trimmed === '') {
+      return [];
+    }
     // Comma-separated
     const baseType = type.slice(0, -2);
     return trimmed.split(',').map((v) => parseParamValue(v.trim(), baseType));

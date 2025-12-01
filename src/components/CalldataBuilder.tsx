@@ -141,10 +141,7 @@ function parseParamValue(value: string, type: string): unknown {
     return trimmed === 'true';
   }
 
-  if (type.startsWith('uint') || type.startsWith('int')) {
-    return BigInt(trimmed || '0');
-  }
-
+  // Check arrays BEFORE scalar types (uint256[] starts with 'uint')
   if (type.endsWith('[]')) {
     // Array type
     if (trimmed.startsWith('[')) {
@@ -157,6 +154,10 @@ function parseParamValue(value: string, type: string): unknown {
     // Comma-separated
     const baseType = type.slice(0, -2);
     return trimmed.split(',').map((v) => parseParamValue(v.trim(), baseType));
+  }
+
+  if (type.startsWith('uint') || type.startsWith('int')) {
+    return BigInt(trimmed || '0');
   }
 
   // address, bytes, string - return as-is

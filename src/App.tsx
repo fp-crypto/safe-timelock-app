@@ -1052,6 +1052,13 @@ function CancelTab({
     }
   }, [operationId]);
 
+  const handleSelectScheduled = useCallback((decoded: DecodedTimelock) => {
+    setError('');
+    if (decoded.operationId) {
+      setOperationId(decoded.operationId);
+    }
+  }, []);
+
   const submit = () => {
     if (!timelockAddress || !output) return;
     sendTransaction({ to: timelockAddress, data: output as Hex });
@@ -1065,6 +1072,11 @@ function CancelTab({
           Encode a <code>cancel()</code> to abort a pending operation.
         </p>
       </div>
+
+      <ScheduledOperations
+        timelockAddress={timelockAddress || ''}
+        onSelect={handleSelectScheduled}
+      />
 
       <InputField
         label="Operation ID (bytes32)"

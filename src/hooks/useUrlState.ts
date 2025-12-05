@@ -32,6 +32,18 @@ const DEFAULT_STATE: UrlState = {
   data: '0x',
 };
 
+const APP_STATE_KEY = 'safe-timelock-app-state';
+
+// Detect if running in an iframe (Safe App mode)
+function isInIframe(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    // If we can't access window.top due to cross-origin, we're in an iframe
+    return true;
+  }
+}
+
 function encodeOps(ops: Operation[]): string {
   try {
     return btoa(JSON.stringify(ops));
@@ -154,8 +166,30 @@ export function useUrlState(localStorageTimelock: string): {
   initialState: UrlState;
   updateUrl: (state: Partial<UrlState>) => void;
 } {
+  // Detect iframe mode once on mount
+  const isIframeMode = useRef(isInIframe());
+
   const [initialState] = useState<UrlState>(() => {
     const urlState = parseUrlState();
+
+    // If in iframe mode and URL has minimal params, try localStorage fallback
+    if (isIframeMode.current && Object.keys(urlState).length <= 1) {
+      const stored = localStorage.getItem(APP_STATE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          return {
+            ...DEFAULT_STATE,
+            timelock: urlState.timelock || parsed.timelock || localStorageTimelock || '',
+            ...parsed,
+            ...urlState, // URL params still take priority
+          };
+        } catch {
+          // Invalid JSON, ignore
+        }
+      }
+    }
+
     return {
       ...DEFAULT_STATE,
       timelock: urlState.timelock || localStorageTimelock || '',
@@ -176,6 +210,11 @@ export function useUrlState(localStorageTimelock: string): {
     debounceRef.current = setTimeout(() => {
       const url = buildUrl(currentStateRef.current);
       window.history.replaceState(null, '', url);
+
+      // In iframe mode, also persist to localStorage as fallback
+      if (isIframeMode.current) {
+        localStorage.setItem(APP_STATE_KEY, JSON.stringify(currentStateRef.current));
+      }
     }, 100);
   }, []);
 

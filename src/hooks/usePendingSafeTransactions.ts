@@ -51,6 +51,9 @@ async function fetchSafeInfo(
 ): Promise<SafeInfo> {
   const url = `${baseUrl}/api/v1/safes/${safeAddress}/`;
   const response = await fetch(url);
+  if (response.status === 429) {
+    throw new Error('429: Rate limited by Safe Transaction Service');
+  }
   if (!response.ok) {
     throw new Error(`Failed to fetch Safe info: ${response.status}`);
   }
@@ -71,6 +74,9 @@ async function fetchPendingTransactions(
     fetch(`${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=false&limit=50`),
   ]);
 
+  if (txResponse.status === 429) {
+    throw new Error('429: Rate limited by Safe Transaction Service');
+  }
   if (!txResponse.ok) {
     throw new Error(`Failed to fetch pending transactions: ${txResponse.status}`);
   }
@@ -94,6 +100,9 @@ export async function fetchExecutedTransactions(
   let url = `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=true&limit=100&ordering=-executionDate`;
 
   const response = await fetch(url);
+  if (response.status === 429) {
+    throw new Error('429: Rate limited by Safe Transaction Service');
+  }
   if (!response.ok) {
     throw new Error(`Failed to fetch executed transactions: ${response.status}`);
   }
@@ -116,8 +125,12 @@ export function usePendingSafeTransactions(
     queryKey: ['pendingSafeTransactions', safeAddress, chainId],
     queryFn: () => fetchPendingTransactions(safeAddress!, chainId!),
     enabled: !!safeAddress && !!chainId && !!SAFE_TX_SERVICE_SHORTNAMES[chainId],
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message.includes('429')) return false;
+      return failureCount < 2;
+    },
   });
 }
 

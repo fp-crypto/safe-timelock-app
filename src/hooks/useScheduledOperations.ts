@@ -72,8 +72,12 @@ export function useScheduledOperations(
     queryKey: ['executedSafeTransactions', safeAddress, chainId, sinceDate.getTime()],
     queryFn: () => fetchExecutedTransactions(safeAddress!, chainId!, sinceDate),
     enabled: !!safeAddress && !!chainId && !!SAFE_TX_SERVICE_SHORTNAMES[chainId],
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 120_000,
+    refetchInterval: 300_000,
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message.includes('429')) return false;
+      return failureCount < 2;
+    },
   });
 
   // Filter and decode schedule operations from both sources

@@ -147,13 +147,26 @@ export function ScheduledOperations({
   }
 
   if (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isRateLimit = errorMessage.includes('429');
+    const isNetworkError = errorMessage.includes('fetch') || errorMessage.includes('network');
+
+    let displayMessage = 'Failed to load operations.';
+    if (isRateLimit) {
+      displayMessage = 'Rate limited by Safe Transaction Service. Please wait a moment.';
+    } else if (isNetworkError) {
+      displayMessage = 'Network error. Check your connection.';
+    } else if (!address) {
+      displayMessage = 'Are you connected to a Safe?';
+    }
+
     return (
       <div className="scheduled-ops-section">
         <div className="scheduled-ops-header">
           <span className="scheduled-ops-title">Scheduled Operations</span>
         </div>
         <div className="scheduled-ops-error">
-          Failed to load operations. Are you connected to a Safe?
+          {displayMessage}
         </div>
       </div>
     );

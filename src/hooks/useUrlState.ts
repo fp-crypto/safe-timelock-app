@@ -70,7 +70,7 @@ function decodeOps(encoded: string): Operation[] | null {
   }
 }
 
-function parseUrlState(): Partial<UrlState> {
+export function parseUrlState(): Partial<UrlState> {
   const params = new URLSearchParams(window.location.search);
   const state: Partial<UrlState> = {};
 

@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "deploy": "wrangler pages deploy"
+    "deploy": "wrangler pages deploy",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@safe-global/safe-deployments": "^1.37.49",
     "@tanstack/react-query": "^5.90.11",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -26,6 +29,7 @@
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.3",
     "vite": "^5.3.4",
+    "vitest": "^4.0.15",
     "wrangler": "^4.51.0"
   }
 }

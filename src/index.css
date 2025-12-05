@@ -529,6 +529,19 @@ body {
   color: var(--accent-blue);
 }
 
+.status-error {
+  background: rgba(248, 81, 73, 0.2);
+  color: var(--accent-red);
+}
+
+.status-error-message {
+  color: var(--accent-red);
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  word-break: break-word;
+}
+
 .refresh-btn {
   background: none;
   border: 1px solid var(--border-color);

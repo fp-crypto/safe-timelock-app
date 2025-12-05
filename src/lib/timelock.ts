@@ -9,14 +9,28 @@ import {
   type Address,
   zeroHash,
 } from 'viem';
+import {
+  getMultiSendDeployment,
+  getMultiSendCallOnlyDeployment,
+} from '@safe-global/safe-deployments';
 
-// Known Safe MultiSend contract addresses (same across networks)
-const MULTISEND_ADDRESSES = new Set([
-  '0x40a2accbd92bca938b02010e17a5b8929b49130d', // MultiSend 1.3.0
-  '0xa238cbeb142c10ef7ad8442c6d1f9e89e07e7761', // MultiSend Call Only 1.3.0
-  '0x38869bf66a61cf6bdb996a6ae40d5853fd43b526', // MultiSend 1.4.1
-  '0x9641d764fc13c8b624c04430c7356c1c7c8102e2', // MultiSend Call Only 1.4.1
-].map(a => a.toLowerCase()));
+// Dynamically build the set of known MultiSend addresses from safe-deployments
+function getMultiSendAddresses(): Set<string> {
+  const addresses = new Set<string>();
+  for (const version of ['1.3.0', '1.4.1'] as const) {
+    const multiSend = getMultiSendDeployment({ version });
+    const callOnly = getMultiSendCallOnlyDeployment({ version });
+    if (multiSend?.defaultAddress) {
+      addresses.add(multiSend.defaultAddress.toLowerCase());
+    }
+    if (callOnly?.defaultAddress) {
+      addresses.add(callOnly.defaultAddress.toLowerCase());
+    }
+  }
+  return addresses;
+}
+
+const MULTISEND_ADDRESSES = getMultiSendAddresses();
 
 // MultiSend function selector: multiSend(bytes)
 const MULTISEND_SELECTOR = '0x8d80ff0a';

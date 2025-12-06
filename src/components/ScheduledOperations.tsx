@@ -103,7 +103,7 @@ export function ScheduledOperations({
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
 
-  const { operations, isLoading, error } = useScheduledOperations(
+  const { operations, isLoading, error, refetch } = useScheduledOperations(
     address as Address | undefined,
     chainId,
     timelockAddress as Address | undefined
@@ -164,6 +164,7 @@ export function ScheduledOperations({
       <div className="scheduled-ops-section">
         <div className="scheduled-ops-header">
           <span className="scheduled-ops-title">Scheduled Operations</span>
+          <button className="refresh-btn" onClick={() => refetch()}>↻</button>
         </div>
         <div className="scheduled-ops-error">
           {displayMessage}
@@ -190,6 +191,7 @@ export function ScheduledOperations({
             </span>
           )}
         </span>
+        <button className="refresh-btn" onClick={() => refetch()}>↻</button>
       </div>
       {operations.length === 0 ? (
         <div className="scheduled-ops-empty">

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useReadContracts } from 'wagmi';
 import type { Address, Hex } from 'viem';
@@ -15,6 +15,10 @@ import {
   TIMELOCK_ABI,
   type DecodedTimelock,
 } from '../lib/timelock';
+
+// Cache durations
+const EXECUTED_TX_STALE_TIME = 10 * 60 * 1000; // 10 minutes
+const EXECUTED_TX_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
 export interface ScheduledOperation {
   safeTxHash: string;
@@ -50,6 +54,7 @@ export function useScheduledOperations(
     data: pendingTxs,
     isLoading: pendingLoading,
     error: pendingError,
+    refetch: refetchPending,
   } = usePendingSafeTransactions(safeAddress, chainId);
 
   // Calculate lookback date based on minDelay
@@ -68,12 +73,15 @@ export function useScheduledOperations(
     data: executedTxs,
     isLoading: executedLoading,
     error: executedError,
+    refetch: refetchExecuted,
   } = useQuery({
     queryKey: ['executedSafeTransactions', safeAddress, chainId, sinceDate.getTime()],
     queryFn: () => fetchExecutedTransactions(safeAddress!, chainId!, sinceDate),
     enabled: !!safeAddress && !!chainId && !!SAFE_TX_SERVICE_SHORTNAMES[chainId],
-    staleTime: 120_000,
-    refetchInterval: 300_000,
+    staleTime: EXECUTED_TX_STALE_TIME,
+    gcTime: EXECUTED_TX_GC_TIME,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: (failureCount, error) => {
       if (error instanceof Error && error.message.includes('429')) return false;
       return failureCount < 2;
@@ -277,9 +285,16 @@ export function useScheduledOperations(
     return result;
   }, [pendingScheduleOps, executedScheduleOps, statusMap]);
 
+  // Combined refetch for all data
+  const refetch = useCallback(() => {
+    refetchPending();
+    refetchExecuted();
+  }, [refetchPending, refetchExecuted]);
+
   return {
     operations,
     isLoading: pendingLoading || executedLoading || statusLoading,
     error: pendingError || executedError,
+    refetch,
   };
 }

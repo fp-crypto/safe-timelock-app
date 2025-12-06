@@ -2,6 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import type { Address, Hex } from 'viem';
 import { extractTimelockCalldata } from '../lib/timelock';
 
+// Cache durations
+const SAFE_INFO_STALE_TIME = 30 * 60 * 1000; // 30 minutes
+const SAFE_INFO_GC_TIME = 60 * 60 * 1000; // 1 hour
+const PENDING_TX_STALE_TIME = 5 * 60 * 1000; // 5 minutes
+const PENDING_TX_GC_TIME = 30 * 60 * 1000; // 30 minutes
+
 export interface SafeTransaction {
   safeTxHash: string;
   to: string;
@@ -62,29 +68,52 @@ async function fetchSafeInfo(
 
 async function fetchPendingTransactions(
   safeAddress: Address,
-  chainId: number
+  chainId: number,
+  currentNonce: number
 ): Promise<SafeTransaction[]> {
   const baseUrl = getSafeServiceUrl(chainId);
   if (!baseUrl) {
     throw new Error(`Unsupported chain: ${chainId}`);
   }
 
-  const [safeInfo, txResponse] = await Promise.all([
-    fetchSafeInfo(baseUrl, safeAddress),
-    fetch(`${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=false&limit=50`),
-  ]);
+  const response = await fetch(
+    `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=false&limit=20`
+  );
 
-  if (txResponse.status === 429) {
+  if (response.status === 429) {
     throw new Error('429: Rate limited by Safe Transaction Service');
   }
-  if (!txResponse.ok) {
-    throw new Error(`Failed to fetch pending transactions: ${txResponse.status}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch pending transactions: ${response.status}`);
   }
 
-  const data: SafeTransactionResponse = await txResponse.json();
+  const data: SafeTransactionResponse = await response.json();
 
   // Filter out stale transactions (nonce < current Safe nonce)
-  return data.results.filter((tx) => tx.nonce >= safeInfo.nonce);
+  return data.results.filter((tx) => tx.nonce >= currentNonce);
+}
+
+/**
+ * Hook to fetch Safe info (nonce, threshold, owners) with long cache
+ */
+export function useSafeInfo(safeAddress: Address | undefined, chainId: number | undefined) {
+  return useQuery({
+    queryKey: ['safeInfo', safeAddress, chainId],
+    queryFn: async () => {
+      const baseUrl = getSafeServiceUrl(chainId!);
+      if (!baseUrl) throw new Error(`Unsupported chain: ${chainId}`);
+      return fetchSafeInfo(baseUrl, safeAddress!);
+    },
+    enabled: !!safeAddress && !!chainId && !!SAFE_TX_SERVICE_SHORTNAMES[chainId],
+    staleTime: SAFE_INFO_STALE_TIME,
+    gcTime: SAFE_INFO_GC_TIME,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message.includes('429')) return false;
+      return failureCount < 2;
+    },
+  });
 }
 
 export async function fetchExecutedTransactions(
@@ -97,7 +126,7 @@ export async function fetchExecutedTransactions(
     throw new Error(`Unsupported chain: ${chainId}`);
   }
 
-  let url = `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=true&limit=100&ordering=-executionDate`;
+  let url = `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=true&limit=50&ordering=-executionDate`;
 
   const response = await fetch(url);
   if (response.status === 429) {
@@ -121,17 +150,33 @@ export function usePendingSafeTransactions(
   safeAddress: Address | undefined,
   chainId: number | undefined
 ) {
-  return useQuery({
-    queryKey: ['pendingSafeTransactions', safeAddress, chainId],
-    queryFn: () => fetchPendingTransactions(safeAddress!, chainId!),
-    enabled: !!safeAddress && !!chainId && !!SAFE_TX_SERVICE_SHORTNAMES[chainId],
-    staleTime: 60_000,
-    refetchInterval: 120_000,
+  // Get cached safe info for nonce filtering
+  const { data: safeInfo, refetch: refetchSafeInfo } = useSafeInfo(safeAddress, chainId);
+
+  const query = useQuery({
+    queryKey: ['pendingSafeTransactions', safeAddress, chainId, safeInfo?.nonce],
+    queryFn: () => fetchPendingTransactions(safeAddress!, chainId!, safeInfo!.nonce),
+    enabled: !!safeAddress && !!chainId && !!SAFE_TX_SERVICE_SHORTNAMES[chainId] && !!safeInfo,
+    staleTime: PENDING_TX_STALE_TIME,
+    gcTime: PENDING_TX_GC_TIME,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: (failureCount, error) => {
       if (error instanceof Error && error.message.includes('429')) return false;
       return failureCount < 2;
     },
   });
+
+  // Safe refetch that refreshes safe info first (pending tx will auto-refetch via query key)
+  const refetch = async () => {
+    await refetchSafeInfo();
+    // If safeInfo was already available, also refetch pending (query key may not change)
+    if (safeInfo) {
+      await query.refetch();
+    }
+  };
+
+  return { ...query, refetch };
 }
 
 export interface FilteredSafeTransaction extends SafeTransaction {

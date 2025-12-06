@@ -81,6 +81,13 @@ npm run build    # TypeScript check + production build
 npm run preview  # Preview production build locally
 ```
 
+### Testing
+
+```bash
+npm test           # Run tests once
+npm run test:watch # Run tests in watch mode
+```
+
 ### Deploying as a Safe App
 
 1. Build the app: `npm run build`
@@ -107,31 +114,51 @@ npm run preview  # Preview production build locally
 - **@tanstack/react-query** - Data fetching and caching
 - **TypeScript** - Type safety
 - **Vite** - Build tool
+- **Vitest** - Unit testing
 
 ## Project Structure
 
 ```
 src/
 ├── components/
-│   ├── AbiManager.tsx       # Custom ABI storage UI
-│   ├── CalldataBuilder.tsx  # Sourcify-powered calldata builder
-│   ├── DecodedCalldata.tsx  # Calldata decoder with risk levels
-│   └── DecimalTooltip.tsx   # Number format tooltip
-├── config/
-│   └── wagmi.ts             # Wagmi config with Safe connector
+│   ├── ui/                         # Reusable UI components
+│   │   ├── InputField.tsx
+│   │   ├── OutputDisplay.tsx
+│   │   ├── StatusDisplay.tsx
+│   │   └── BatchOperationItem.tsx
+│   ├── AbiManager.tsx              # Custom ABI storage UI
+│   ├── CalldataBuilder.tsx         # Sourcify-powered calldata builder
+│   ├── DecodedCalldata.tsx         # Calldata decoder with risk levels
+│   ├── DecimalTooltip.tsx          # Number format tooltip
+│   ├── PendingSafeTransactions.tsx # Pending Safe tx picker
+│   ├── ScheduledOperations.tsx     # Scheduled timelock operations
+│   └── WalletConnection.tsx        # Wallet connection UI
+├── tabs/                           # Tab components
+│   ├── ScheduleTab.tsx
+│   ├── ExecuteTab.tsx
+│   ├── DecodeTab.tsx
+│   ├── HashTab.tsx
+│   └── CancelTab.tsx
 ├── hooks/
-│   ├── useAutoConnect.ts    # Auto-connect in Safe iframe
-│   ├── useDecodeCalldata.ts # Multi-source calldata decoder
-│   ├── useProxyDetection.ts # ERC1967 proxy detection
-│   ├── useSourcifyAbi.ts    # Sourcify API integration
-│   └── useTimelockStatus.ts # Timelock operation status
+│   ├── useAutoConnect.ts           # Auto-connect in Safe iframe
+│   ├── useDecodeCalldata.ts        # Multi-source calldata decoder
+│   ├── usePendingSafeTransactions.ts # Safe TX Service integration
+│   ├── useScheduledOperations.ts   # Scheduled operation tracking
+│   ├── useProxyDetection.ts        # ERC1967 proxy detection
+│   ├── useSourcifyAbi.ts           # Sourcify API integration
+│   ├── useTimelockStatus.ts        # Timelock operation status
+│   └── useUrlState.ts              # URL state persistence
 ├── lib/
-│   ├── abi-storage.ts       # localStorage ABI management
-│   ├── format-decimals.ts   # Decimal format utilities
-│   ├── selectors.ts         # Known function selectors
-│   └── timelock.ts          # Timelock encoding/decoding
-├── App.tsx                  # Main application
-└── index.css                # Styles
+│   ├── abi-storage.ts              # localStorage ABI management
+│   ├── format-decimals.ts          # Decimal format utilities
+│   ├── selectors.ts                # Known function selectors
+│   ├── timelock.ts                 # Timelock encoding/decoding
+│   └── timelock.test.ts            # Unit tests
+├── config/
+│   └── wagmi.ts                    # Wagmi config with Safe connector
+├── App.tsx                         # Main application
+├── main.tsx                        # Entry point with cache persistence
+└── index.css                       # Styles
 ```
 
 ## OpenZeppelin Timelock
@@ -155,6 +182,13 @@ This tool is designed for [OpenZeppelin's TimelockController](https://docs.openz
 
 Add more chains in `src/config/wagmi.ts`.
 
+## Caching & Performance
+
+- **Safe API caching** - Safe Transaction Service data is cached locally to reduce API calls
+- **Cross-tab sharing** - Query cache persists to localStorage and is shared across browser tabs
+- **Manual refresh** - Use the refresh buttons to fetch fresh data (no automatic polling)
+- **Cache durations** - Safe info: 30 min, Pending txs: 5 min, Executed txs: 10 min
+
 ## Security Notes
 
 - This tool only encodes/decodes calldata - it doesn't execute transactions directly
@@ -162,6 +196,7 @@ Add more chains in `src/config/wagmi.ts`.
 - The tool queries public RPC endpoints and Sourcify for contract data
 - No private keys or sensitive data are stored
 - Custom ABIs are stored in browser localStorage only
+- Query cache is stored in browser localStorage
 
 ## License
 

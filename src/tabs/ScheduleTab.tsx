@@ -17,6 +17,7 @@ interface ScheduleTabProps {
   initialOps: UrlOperation[];
   initialDelay: string;
   onUpdate: (ops: UrlOperation[], delay: string) => void;
+  onClear: () => void;
 }
 
 export function ScheduleTab({
@@ -24,6 +25,7 @@ export function ScheduleTab({
   initialOps,
   initialDelay,
   onUpdate,
+  onClear,
 }: ScheduleTabProps) {
   const [operations, setOperations] = useState(() => {
     const current = parseUrlState();
@@ -47,6 +49,16 @@ export function ScheduleTab({
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const { minDelay } = useMinDelay(timelockAddress);
+
+  const handleClear = useCallback(() => {
+    setOperations([{ target: '', value: '0', data: '0x' }]);
+    setPredecessor(zeroHash);
+    setSalt(zeroHash);
+    setDelay('86400');
+    setOutput({ calldata: '', operationId: '' });
+    setError('');
+    onClear();
+  }, [onClear]);
 
   const addOperation = () => setOperations([...operations, { target: '', value: '0', data: '0x' }]);
   const removeOperation = (i: number) => setOperations(operations.filter((_, idx) => idx !== i));
@@ -107,7 +119,12 @@ export function ScheduleTab({
   return (
     <div className="tab-content">
       <div className="tab-header">
-        <h3>Schedule Operation{isBatch ? 's' : ''}</h3>
+        <div className="tab-header-row">
+          <h3>Schedule Operation{isBatch ? 's' : ''}</h3>
+          <button onClick={handleClear} className="clear-btn" title="Clear all fields">
+            Clear
+          </button>
+        </div>
         <p>
           Encode a <code>{isBatch ? 'scheduleBatch()' : 'schedule()'}</code> call for the TimelockController.
         </p>

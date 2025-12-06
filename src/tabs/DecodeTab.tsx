@@ -12,6 +12,7 @@ interface DecodeTabProps {
   initialDecode: boolean;
   onUpdate: (calldata: string, decode: boolean) => void;
   timelockAddress: string;
+  onClear: () => void;
 }
 
 export function DecodeTab({
@@ -19,6 +20,7 @@ export function DecodeTab({
   initialDecode,
   onUpdate,
   timelockAddress,
+  onClear,
 }: DecodeTabProps) {
   const [calldata, setCalldata] = useState(() => {
     const current = parseUrlState();
@@ -58,10 +60,23 @@ export function DecodeTab({
     setError('');
   }, []);
 
+  const handleClear = useCallback(() => {
+    setCalldata('');
+    setDecoded(null);
+    setError('');
+    setHasAutoDecoded(false);
+    onClear();
+  }, [onClear]);
+
   return (
     <div className="tab-content">
       <div className="tab-header">
-        <h3>Decode Calldata</h3>
+        <div className="tab-header-row">
+          <h3>Decode Calldata</h3>
+          <button onClick={handleClear} className="clear-btn" title="Clear all fields">
+            Clear
+          </button>
+        </div>
         <p>Paste TimelockController calldata to decode and inspect it.</p>
       </div>
 

@@ -16,6 +16,7 @@ interface HashTabProps {
   initialValue: string;
   initialData: string;
   onUpdate: (target: string, value: string, data: string) => void;
+  onClear: () => void;
 }
 
 export function HashTab({
@@ -24,6 +25,7 @@ export function HashTab({
   initialValue,
   initialData,
   onUpdate,
+  onClear,
 }: HashTabProps) {
   const [operations, setOperations] = useState<UrlOperation[]>(() => {
     const current = parseUrlState();
@@ -45,6 +47,17 @@ export function HashTab({
       onUpdate(operations[0].target, operations[0].value, operations[0].data);
     }
   }, [operations, onUpdate]);
+
+  const handleClear = useCallback(() => {
+    setOperations([{ target: '', value: '0', data: '0x' }]);
+    setPredecessor(zeroHash);
+    setSalt(zeroHash);
+    setOperationId('');
+    setError('');
+    setUseBatch(false);
+    setImportCalldata('');
+    onClear();
+  }, [onClear]);
 
   const addOperation = () => setOperations([...operations, { target: '', value: '0', data: '0x' }]);
   const removeOperation = (i: number) => setOperations(operations.filter((_, idx) => idx !== i));
@@ -144,7 +157,12 @@ export function HashTab({
   return (
     <div className="tab-content">
       <div className="tab-header">
-        <h3>Calculate Operation ID{isBatch ? ' (Batch)' : ''}</h3>
+        <div className="tab-header-row">
+          <h3>Calculate Operation ID{isBatch ? ' (Batch)' : ''}</h3>
+          <button onClick={handleClear} className="clear-btn" title="Clear all fields">
+            Clear
+          </button>
+        </div>
         <p>Calculate the hash to check an operation's status on-chain.</p>
       </div>
 

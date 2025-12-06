@@ -165,6 +165,7 @@ function buildUrl(state: Partial<UrlState>): string {
 export function useUrlState(localStorageTimelock: string): {
   initialState: UrlState;
   updateUrl: (state: Partial<UrlState>) => void;
+  clearTabState: () => void;
 } {
   // Detect iframe mode once on mount
   const isIframeMode = useRef(isInIframe());
@@ -226,5 +227,58 @@ export function useUrlState(localStorageTimelock: string): {
     };
   }, []);
 
-  return { initialState, updateUrl };
+  const clearTabState = useCallback(() => {
+    // Clear any pending debounced updates
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    // Keep only tab and timelock in URL
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const timelock = params.get('timelock');
+
+    const newParams = new URLSearchParams();
+    if (tab) newParams.set('tab', tab);
+    if (timelock) newParams.set('timelock', timelock);
+
+    const search = newParams.toString();
+    const url = search ? `?${search}` : window.location.pathname;
+    window.history.replaceState(null, '', url);
+
+    // Reset current state ref to only keep tab and timelock
+    currentStateRef.current = {
+      tab: tab || undefined,
+      timelock: timelock || undefined,
+    };
+
+    // Update iframe localStorage fallback, preserving timelock
+    if (isIframeMode.current) {
+      // Preserve timelock from existing storage if not in URL
+      let preservedTimelock = timelock;
+      if (!preservedTimelock) {
+        try {
+          const stored = localStorage.getItem(APP_STATE_KEY);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            preservedTimelock = parsed.timelock;
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
+      // Store only tab and timelock, clearing all other fields
+      if (preservedTimelock || tab) {
+        localStorage.setItem(APP_STATE_KEY, JSON.stringify({
+          tab: tab || undefined,
+          timelock: preservedTimelock || undefined,
+        }));
+      } else {
+        localStorage.removeItem(APP_STATE_KEY);
+      }
+    }
+  }, []);
+
+  return { initialState, updateUrl, clearTabState };
 }

@@ -17,12 +17,14 @@ interface ExecuteTabProps {
   timelockAddress: Address | undefined;
   initialOps: UrlOperation[];
   onUpdate: (ops: UrlOperation[]) => void;
+  onClear: () => void;
 }
 
 export function ExecuteTab({
   timelockAddress,
   initialOps,
   onUpdate,
+  onClear,
 }: ExecuteTabProps) {
   const [importCalldata, setImportCalldata] = useState('');
   const [operations, setOperations] = useState(() => {
@@ -43,6 +45,18 @@ export function ExecuteTab({
   const { isConnected } = useAccount();
   const { sendTransaction, data: txHash, isPending } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const handleClear = useCallback(() => {
+    setOperations([{ target: '', value: '0', data: '0x' }]);
+    setPredecessor(zeroHash);
+    setSalt(zeroHash);
+    setImportCalldata('');
+    setOutput({ calldata: '', operationId: '' });
+    setError('');
+    setUseBatch(false);
+    setExpandedBuilderIndex(null);
+    onClear();
+  }, [onClear]);
 
   const addOperation = () => setOperations([...operations, { target: '', value: '0', data: '0x' }]);
   const removeOperation = (i: number) => setOperations(operations.filter((_, idx) => idx !== i));
@@ -157,7 +171,12 @@ export function ExecuteTab({
   return (
     <div className="tab-content">
       <div className="tab-header">
-        <h3>Execute Operation{isBatch ? 's' : ''}</h3>
+        <div className="tab-header-row">
+          <h3>Execute Operation{isBatch ? 's' : ''}</h3>
+          <button onClick={handleClear} className="clear-btn" title="Clear all fields">
+            Clear
+          </button>
+        </div>
         <p>
           Encode an <code>{isBatch ? 'executeBatch()' : 'execute()'}</code> call. Use the same params from scheduling.
         </p>

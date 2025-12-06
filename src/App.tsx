@@ -21,7 +21,7 @@ export function App() {
     : '';
 
   // URL state management
-  const { initialState, updateUrl } = useUrlState(localStorageTimelock);
+  const { initialState, updateUrl, clearTabState } = useUrlState(localStorageTimelock);
 
   const [activeTab, setActiveTab] = useState(initialState.tab);
   const [timelockAddress, setTimelockAddress] = useState(initialState.timelock);
@@ -118,6 +118,7 @@ export function App() {
               initialOps={initialState.ops}
               initialDelay={initialState.delay}
               onUpdate={handleScheduleUpdate}
+              onClear={clearTabState}
             />
           )}
           {activeTab === 'execute' && (
@@ -125,6 +126,7 @@ export function App() {
               timelockAddress={validTimelockAddress}
               initialOps={initialState.ops}
               onUpdate={handleExecuteUpdate}
+              onClear={clearTabState}
             />
           )}
           {activeTab === 'decode' && (
@@ -133,6 +135,7 @@ export function App() {
               initialDecode={initialState.decode}
               onUpdate={handleDecodeUpdate}
               timelockAddress={timelockAddress}
+              onClear={clearTabState}
             />
           )}
           {activeTab === 'hash' && (
@@ -142,6 +145,7 @@ export function App() {
               initialValue={initialState.value}
               initialData={initialState.data}
               onUpdate={handleHashUpdate}
+              onClear={clearTabState}
             />
           )}
           {activeTab === 'cancel' && (
@@ -149,6 +153,7 @@ export function App() {
               timelockAddress={validTimelockAddress}
               initialOpId={initialState.opId}
               onUpdate={handleCancelUpdate}
+              onClear={clearTabState}
             />
           )}
         </div>

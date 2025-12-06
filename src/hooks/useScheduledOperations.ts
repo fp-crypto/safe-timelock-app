@@ -38,7 +38,6 @@ export interface ScheduledOperation {
   };
 }
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function useScheduledOperations(
@@ -60,8 +59,8 @@ export function useScheduledOperations(
   // Calculate lookback date based on minDelay
   const sinceDate = useMemo(() => {
     if (minDelay !== undefined) {
-      // Look back minDelay + 7 days
-      const lookbackMs = Number(minDelay) * 1000 + SEVEN_DAYS_MS;
+      // Look back minDelay + 30 days
+      const lookbackMs = Number(minDelay) * 1000 + THIRTY_DAYS_MS;
       return new Date(Date.now() - lookbackMs);
     }
     // Default to 30 days if minDelay not available

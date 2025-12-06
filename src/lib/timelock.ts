@@ -80,6 +80,11 @@ export function decodeMultiSend(data: Hex): MultiSendTransaction[] {
       const dataLen = Number(bytesToBigInt(dataLenBytes));
       offset += 32;
 
+      // Validate dataLen to prevent overflow/out-of-bounds reads
+      if (!Number.isFinite(dataLen) || dataLen < 0 || offset + dataLen > bytesArray.length) {
+        return []; // Malformed data
+      }
+
       // data
       const txData = bytesToHex(bytesArray.slice(offset, offset + dataLen)) as Hex;
       offset += dataLen;
@@ -114,8 +119,10 @@ export function extractTimelockCalldata(
   // Check if it's a MultiSend call
   if (isMultiSendAddress(to)) {
     const txs = decodeMultiSend(data);
-    // Find the transaction targeting the timelock
-    const timelockTx = txs.find(tx => tx.to.toLowerCase() === normalizedTimelock);
+    // Find CALL (not DELEGATECALL) targeting the timelock
+    const timelockTx = txs.find(tx =>
+      tx.operation === 0 && tx.to.toLowerCase() === normalizedTimelock
+    );
     if (timelockTx) {
       return timelockTx.data;
     }

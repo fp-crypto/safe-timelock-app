@@ -5,6 +5,12 @@ import { safe, injected, walletConnect } from 'wagmi/connectors';
 // WalletConnect Project ID - users should replace with their own
 const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
 
+if (WALLETCONNECT_PROJECT_ID === 'YOUR_PROJECT_ID') {
+  console.warn(
+    '[WalletConnect] No project ID configured. Set VITE_WALLETCONNECT_PROJECT_ID for WalletConnect support.'
+  );
+}
+
 // Supported chains
 export const chains = [mainnet, sepolia, arbitrum, optimism, polygon, base, gnosis] as const;
 

@@ -60,7 +60,7 @@ When used outside of Safe, connect any wallet (MetaMask, WalletConnect, etc.). Y
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/fp-crypto/safe-timelock-app
 cd safe-timelock-app
 
 # Install dependencies

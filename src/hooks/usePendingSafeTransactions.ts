@@ -126,7 +126,7 @@ export async function fetchExecutedTransactions(
     throw new Error(`Unsupported chain: ${chainId}`);
   }
 
-  let url = `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=true&limit=50&ordering=-executionDate`;
+  let url = `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=true&limit=200&ordering=-executionDate`;
 
   const response = await fetch(url);
   if (response.status === 429) {

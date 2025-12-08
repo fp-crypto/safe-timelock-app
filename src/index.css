@@ -295,6 +295,23 @@ body {
   color: var(--text-primary);
 }
 
+.copy-link-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.copy-link-btn:hover {
+  border-color: var(--safe-green);
+  color: var(--safe-green);
+}
+
 /* Input Fields */
 .input-field {
   margin-bottom: 1.25rem;

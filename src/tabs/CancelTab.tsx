@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
 import { type Hex, type Address } from 'viem';
-import { InputField, OutputDisplay } from '../components/ui';
+import { InputField, OutputDisplay, CopyLinkButton } from '../components/ui';
 import { ScheduledOperations } from '../components/ScheduledOperations';
 import { encodeCancel } from '../lib/timelock';
 import type { DecodedTimelock } from '../lib/timelock';
@@ -12,6 +12,7 @@ interface CancelTabProps {
   initialOpId: string;
   onUpdate: (opId: string) => void;
   onClear: () => void;
+  getShareableUrl: () => string;
 }
 
 export function CancelTab({
@@ -19,6 +20,7 @@ export function CancelTab({
   initialOpId,
   onUpdate,
   onClear,
+  getShareableUrl,
 }: CancelTabProps) {
   const [operationId, setOperationId] = useState(() => {
     const current = parseUrlState();
@@ -106,6 +108,7 @@ export function CancelTab({
       {isSuccess && <div className="success-message">Transaction submitted!</div>}
       {error && <div className="error-message">{error}</div>}
       <OutputDisplay label="Cancel Calldata" value={output} />
+      {output && <CopyLinkButton getUrl={getShareableUrl} />}
     </div>
   );
 }

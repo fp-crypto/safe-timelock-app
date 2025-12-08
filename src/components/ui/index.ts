@@ -9,3 +9,6 @@ export type { StatusDisplayProps } from './StatusDisplay';
 
 export { BatchOperationItem } from './BatchOperationItem';
 export type { BatchOperationItemProps } from './BatchOperationItem';
+
+export { CopyLinkButton } from './CopyLinkButton';
+export type { CopyLinkButtonProps } from './CopyLinkButton';

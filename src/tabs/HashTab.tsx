@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { type Hex, type Address, isAddress, zeroHash } from 'viem';
-import { InputField, OutputDisplay, StatusDisplay } from '../components/ui';
+import { InputField, OutputDisplay, StatusDisplay, CopyLinkButton } from '../components/ui';
 import { ScheduledOperations } from '../components/ScheduledOperations';
 import {
   decodeTimelockCalldata,
@@ -17,6 +17,7 @@ interface HashTabProps {
   initialData: string;
   onUpdate: (target: string, value: string, data: string) => void;
   onClear: () => void;
+  getShareableUrl: () => string;
 }
 
 export function HashTab({
@@ -26,6 +27,7 @@ export function HashTab({
   initialData,
   onUpdate,
   onClear,
+  getShareableUrl,
 }: HashTabProps) {
   const [operations, setOperations] = useState<UrlOperation[]>(() => {
     const current = parseUrlState();
@@ -222,6 +224,7 @@ export function HashTab({
 
       {error && <div className="error-message">{error}</div>}
       <OutputDisplay label="Operation ID" value={operationId} />
+      {operationId && <CopyLinkButton getUrl={getShareableUrl} />}
 
       {operationId && (
         <StatusDisplay timelockAddress={timelockAddress} operationId={operationId as Hex} />

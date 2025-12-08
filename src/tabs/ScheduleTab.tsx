@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
 import { type Hex, type Address, isAddress, zeroHash } from 'viem';
-import { InputField, OutputDisplay, StatusDisplay } from '../components/ui';
+import { InputField, OutputDisplay, StatusDisplay, CopyLinkButton } from '../components/ui';
 import { CalldataBuilder } from '../components/CalldataBuilder';
 import { useMinDelay } from '../hooks/useTimelockStatus';
 import {
@@ -18,6 +18,7 @@ interface ScheduleTabProps {
   initialDelay: string;
   onUpdate: (ops: UrlOperation[], delay: string) => void;
   onClear: () => void;
+  getShareableUrl: () => string;
 }
 
 export function ScheduleTab({
@@ -26,6 +27,7 @@ export function ScheduleTab({
   initialDelay,
   onUpdate,
   onClear,
+  getShareableUrl,
 }: ScheduleTabProps) {
   const [operations, setOperations] = useState(() => {
     const current = parseUrlState();
@@ -216,6 +218,7 @@ export function ScheduleTab({
 
       <OutputDisplay label="Operation ID" value={output.operationId} />
       <OutputDisplay label={isBatch ? 'Batch Calldata' : 'Schedule Calldata'} value={output.calldata} />
+      {output.calldata && <CopyLinkButton getUrl={getShareableUrl} />}
 
       {output.operationId && (
         <StatusDisplay

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { type Hex, type Address } from 'viem';
-import { InputField, OutputDisplay, BatchOperationItem } from '../components/ui';
+import { InputField, OutputDisplay, BatchOperationItem, CopyLinkButton } from '../components/ui';
 import { DecodedCalldata } from '../components/DecodedCalldata';
 import { AbiManager } from '../components/AbiManager';
 import { PendingSafeTransactions } from '../components/PendingSafeTransactions';
@@ -13,6 +13,7 @@ interface DecodeTabProps {
   onUpdate: (calldata: string, decode: boolean) => void;
   timelockAddress: string;
   onClear: () => void;
+  getShareableUrl: () => string;
 }
 
 export function DecodeTab({
@@ -21,6 +22,7 @@ export function DecodeTab({
   onUpdate,
   timelockAddress,
   onClear,
+  getShareableUrl,
 }: DecodeTabProps) {
   const [calldata, setCalldata] = useState(() => {
     const current = parseUrlState();
@@ -138,6 +140,7 @@ export function DecodeTab({
           {decoded.delay && (
             <OutputDisplay label="Delay" value={`${decoded.delay}s (${formatDelay(decoded.delay)})`} />
           )}
+          <CopyLinkButton getUrl={getShareableUrl} />
         </div>
       )}
 

@@ -21,7 +21,7 @@ export function App() {
     : '';
 
   // URL state management
-  const { initialState, updateUrl, clearTabState } = useUrlState(localStorageTimelock);
+  const { initialState, updateUrl, clearTabState, getCurrentShareableUrl } = useUrlState(localStorageTimelock);
 
   const [activeTab, setActiveTab] = useState(initialState.tab);
   const [timelockAddress, setTimelockAddress] = useState(initialState.timelock);
@@ -119,6 +119,7 @@ export function App() {
               initialDelay={initialState.delay}
               onUpdate={handleScheduleUpdate}
               onClear={clearTabState}
+              getShareableUrl={getCurrentShareableUrl}
             />
           )}
           {activeTab === 'execute' && (
@@ -127,6 +128,7 @@ export function App() {
               initialOps={initialState.ops}
               onUpdate={handleExecuteUpdate}
               onClear={clearTabState}
+              getShareableUrl={getCurrentShareableUrl}
             />
           )}
           {activeTab === 'decode' && (
@@ -136,6 +138,7 @@ export function App() {
               onUpdate={handleDecodeUpdate}
               timelockAddress={timelockAddress}
               onClear={clearTabState}
+              getShareableUrl={getCurrentShareableUrl}
             />
           )}
           {activeTab === 'hash' && (
@@ -146,6 +149,7 @@ export function App() {
               initialData={initialState.data}
               onUpdate={handleHashUpdate}
               onClear={clearTabState}
+              getShareableUrl={getCurrentShareableUrl}
             />
           )}
           {activeTab === 'cancel' && (
@@ -154,6 +158,7 @@ export function App() {
               initialOpId={initialState.opId}
               onUpdate={handleCancelUpdate}
               onClear={clearTabState}
+              getShareableUrl={getCurrentShareableUrl}
             />
           )}
         </div>

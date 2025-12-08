@@ -6,6 +6,37 @@ export interface Operation {
   data: string;
 }
 
+// Simple hash function for checksum (djb2)
+function hashString(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
+  }
+  // Convert to hex and take first 6 chars for compact checksum
+  return (hash >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+}
+
+// Generate checksum for URL params (excluding the checksum itself)
+function generateChecksum(params: URLSearchParams): string {
+  const copy = new URLSearchParams(params);
+  copy.delete('c'); // Remove existing checksum
+  // Sort params for consistent hashing
+  const sorted = Array.from(copy.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const str = sorted.map(([k, v]) => `${k}=${v}`).join('&');
+  return hashString(str);
+}
+
+// Verify checksum matches
+export function verifyChecksum(search: string): { valid: boolean; hasChecksum: boolean } {
+  const params = new URLSearchParams(search);
+  const checksum = params.get('c');
+  if (!checksum) {
+    return { valid: true, hasChecksum: false };
+  }
+  const expected = generateChecksum(params);
+  return { valid: checksum === expected, hasChecksum: true };
+}
+
 export interface UrlState {
   tab: string;
   timelock: string;
@@ -158,14 +189,26 @@ function buildUrl(state: Partial<UrlState>): string {
     params.set('data', state.data);
   }
 
+  // Add checksum if there are params
+  if (params.toString()) {
+    params.set('c', generateChecksum(params));
+  }
+
   const search = params.toString();
   return search ? `?${search}` : window.location.pathname;
+}
+
+// Generate a full shareable URL with checksum
+export function getShareableUrl(state: Partial<UrlState>): string {
+  const path = buildUrl(state);
+  return `${window.location.origin}${window.location.pathname}${path.startsWith('?') ? path : ''}`;
 }
 
 export function useUrlState(localStorageTimelock: string): {
   initialState: UrlState;
   updateUrl: (state: Partial<UrlState>) => void;
   clearTabState: () => void;
+  getCurrentShareableUrl: () => string;
 } {
   // Detect iframe mode once on mount
   const isIframeMode = useRef(isInIframe());
@@ -280,5 +323,9 @@ export function useUrlState(localStorageTimelock: string): {
     }
   }, []);
 
-  return { initialState, updateUrl, clearTabState };
+  const getCurrentShareableUrl = useCallback(() => {
+    return getShareableUrl(currentStateRef.current);
+  }, []);
+
+  return { initialState, updateUrl, clearTabState, getCurrentShareableUrl };
 }

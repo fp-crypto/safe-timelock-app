@@ -1801,19 +1801,85 @@ body {
 
 .scheduled-op-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem;
+  flex-direction: column;
+  padding: 0;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.scheduled-op-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  cursor: pointer;
 }
 
 .scheduled-op-row:hover {
   border-color: var(--accent-blue);
   background: var(--bg-secondary);
+}
+
+.scheduled-op-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.scheduled-op-expand-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 0.7rem;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.scheduled-op-expand-btn:hover {
+  opacity: 1;
+}
+
+.scheduled-op-details {
+  padding: 0.75rem;
+  padding-top: 0;
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.5rem;
+}
+
+.scheduled-op-eta {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.scheduled-op-eta strong {
+  color: var(--accent-yellow);
+}
+
+.scheduled-op-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.scheduled-op-action-btn {
+  font-size: 0.75rem;
+  padding: 0.375rem 0.625rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.scheduled-op-action-btn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
 }
 
 .scheduled-op-row.status-ready {

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAccount, useChainId } from 'wagmi';
 import type { Address } from 'viem';
 import {
@@ -22,6 +23,68 @@ function formatTimeUntilReady(timestamp: bigint): string {
   return formatDelay(BigInt(seconds));
 }
 
+function formatReadyTime(timestamp: bigint): string {
+  const readyAt = new Date(Number(timestamp) * 1000);
+  return readyAt.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  });
+}
+
+function formatReadyTimeUTC(timestamp: bigint): string {
+  const readyAt = new Date(Number(timestamp) * 1000);
+  return readyAt.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+  });
+}
+
+function generateICS(operationId: string, timestamp: bigint, functionName: string): string {
+  const readyAt = new Date(Number(timestamp) * 1000);
+  const endTime = new Date(readyAt.getTime() + 30 * 60 * 1000); // 30 min duration
+
+  const formatICSDate = (date: Date) => {
+    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  };
+
+  const shortId = operationId.slice(0, 10);
+
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Safe Timelock App//EN',
+    'BEGIN:VEVENT',
+    `DTSTART:${formatICSDate(readyAt)}`,
+    `DTEND:${formatICSDate(endTime)}`,
+    `SUMMARY:Timelock ${functionName}() ready`,
+    `DESCRIPTION:Operation ${shortId}... is ready to execute`,
+    `UID:${operationId}@safe-timelock-app`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+}
+
+function downloadICS(operationId: string, timestamp: bigint, functionName: string) {
+  const ics = generateICS(operationId, timestamp, functionName);
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `timelock-${operationId.slice(0, 10)}.ics`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 function getOperationCount(decoded: DecodedTimelock): number {
   if (decoded.functionName === 'scheduleBatch' && decoded.operations) {
     return decoded.operations.length;
@@ -36,9 +99,14 @@ function OperationRow({
   op: ScheduledOperation;
   onSelect: (decoded: DecodedTimelock) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
   const opCount = getOperationCount(op.decoded);
   const date = new Date(op.submissionDate);
   const dateStr = date.toLocaleDateString();
+
+  const hasTimestamp = !!(op.timelockStatus?.timestamp && op.timelockStatus.timestamp > 0n);
+  const isPendingTimelock = op.safeStatus === 'executed' && op.timelockStatus?.isPending && !op.timelockStatus?.isReady;
 
   let statusBadge: React.ReactNode;
   let statusClass = '';
@@ -57,7 +125,7 @@ function OperationRow({
     statusBadge = (
       <span className="scheduled-op-status ready">Ready</span>
     );
-  } else if (op.timelockStatus?.isPending && op.timelockStatus.timestamp) {
+  } else if (op.timelockStatus?.isPending && hasTimestamp) {
     // In timelock delay
     statusClass = 'status-pending-tl';
     const timeLeft = formatTimeUntilReady(op.timelockStatus.timestamp);
@@ -74,24 +142,82 @@ function OperationRow({
     );
   }
 
+  const handleCopyReminder = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!hasTimestamp) return;
+
+    const readyTime = formatReadyTimeUTC(op.timelockStatus!.timestamp);
+    const shortId = op.operationId.slice(0, 10);
+    const text = `Timelock ${op.decoded.functionName}() (${shortId}...) ready at ${readyTime}`;
+
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handleCalendarExport = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!hasTimestamp) return;
+    downloadICS(op.operationId, op.timelockStatus!.timestamp, op.decoded.functionName);
+  };
+
+  const handleToggleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpanded(!expanded);
+  };
+
   return (
-    <div
-      className={`scheduled-op-row ${statusClass}`}
-      onClick={() => onSelect(op.decoded)}
-    >
-      <div className="scheduled-op-info">
-        {op.safeStatus === 'pending' && (
-          <span className="scheduled-op-nonce">#{op.nonce}</span>
-        )}
-        <span className="scheduled-op-function">
-          {op.decoded.functionName}()
-          {opCount > 1 && (
-            <span className="scheduled-op-count">{opCount} ops</span>
+    <div className={`scheduled-op-row ${statusClass}`}>
+      <div className="scheduled-op-main" onClick={() => onSelect(op.decoded)}>
+        <div className="scheduled-op-info">
+          {op.safeStatus === 'pending' && (
+            <span className="scheduled-op-nonce">#{op.nonce}</span>
           )}
-        </span>
-        <span className="scheduled-op-date">{dateStr}</span>
+          <span className="scheduled-op-function">
+            {op.decoded.functionName}()
+            {opCount > 1 && (
+              <span className="scheduled-op-count">{opCount} ops</span>
+            )}
+          </span>
+          <span className="scheduled-op-date">{dateStr}</span>
+        </div>
+        <div className="scheduled-op-right">
+          {statusBadge}
+          {isPendingTimelock && hasTimestamp && (
+            <button
+              className="scheduled-op-expand-btn"
+              onClick={handleToggleExpand}
+              title={expanded ? 'Hide details' : 'Show details'}
+            >
+              {expanded ? '▲' : '▼'}
+            </button>
+          )}
+        </div>
       </div>
-      {statusBadge}
+      {expanded && isPendingTimelock && hasTimestamp && (
+        <div className="scheduled-op-details">
+          <div className="scheduled-op-eta">
+            Ready at: <strong>{formatReadyTime(op.timelockStatus!.timestamp)}</strong>
+          </div>
+          <div className="scheduled-op-actions">
+            <button
+              className="scheduled-op-action-btn"
+              onClick={handleCopyReminder}
+              title="Copy reminder text"
+            >
+              {copied ? '✓ Copied' : 'Copy reminder'}
+            </button>
+            <button
+              className="scheduled-op-action-btn"
+              onClick={handleCalendarExport}
+              title="Add to calendar"
+            >
+              📅 Calendar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

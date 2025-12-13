@@ -1194,13 +1194,30 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.address-link-actions {
+  display: flex;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.address-link-copy {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.address-link-copy:hover {
+  color: var(--text-primary);
+}
+
 .address-link-explorer {
-  display: block;
   font-size: 0.8rem;
   color: var(--safe-green);
   text-decoration: none;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--border-color);
 }
 
 .address-link-explorer:hover {

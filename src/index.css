@@ -1171,6 +1171,16 @@ body {
   border-top-color: var(--border-color);
 }
 
+/* Bridge the gap between trigger and tooltip */
+.address-link-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 12px;
+}
+
 .address-link-wrapper:hover .address-link-tooltip {
   display: block;
   animation: tooltip-fade-in 0.15s ease-out;

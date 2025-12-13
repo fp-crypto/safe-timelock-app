@@ -16,9 +16,12 @@ export function AddressLink({ address, truncate = true, className = '' }: Addres
   const displayAddress = truncate ? truncateAddress(address) : address;
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    navigator.clipboard.writeText(address).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {
+      // Clipboard write failed - don't show success
+    });
   }, [address]);
 
   return (

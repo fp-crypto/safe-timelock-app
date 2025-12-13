@@ -12,3 +12,6 @@ export type { BatchOperationItemProps } from './BatchOperationItem';
 
 export { CopyLinkButton } from './CopyLinkButton';
 export type { CopyLinkButtonProps } from './CopyLinkButton';
+
+export { AddressLink } from './AddressLink';
+export type { AddressLinkProps } from './AddressLink';

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { isAddress, type Address, type Hex } from 'viem';
 import { useDecodeCalldata, type DecodedInnerCalldata } from '../hooks';
-import { truncateAddress } from '../lib/selectors';
 import { DecimalTooltip } from './DecimalTooltip';
+import { AddressLink } from './ui';
 
 interface DecodedCalldataProps {
   calldata: Hex | undefined;
@@ -97,7 +97,9 @@ function ParamsTable({
         <div key={i} className="params-row">
           <span className="param-name">{param.name || `arg${i}`}</span>
           <span className="param-type">{param.type}</span>
-          {isNumericType(param.type) ? (
+          {param.type === 'address' && typeof param.value === 'string' ? (
+            <AddressLink address={param.value} />
+          ) : isNumericType(param.type) ? (
             <DecimalTooltip value={param.value}>
               <CopyableValue value={String(param.value)} display={param.display} />
             </DecimalTooltip>
@@ -160,7 +162,7 @@ function DecodedContent({
         {target && (
           <div className="decoded-row">
             <span className="label">Target:</span>
-            <code title={target}>{truncateAddress(target)}</code>
+            <AddressLink address={target} />
           </div>
         )}
 

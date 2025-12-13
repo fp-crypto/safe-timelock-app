@@ -1138,6 +1138,65 @@ body {
   word-break: break-all;
 }
 
+/* Address Link Tooltip */
+.address-link-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.address-link-value {
+  cursor: pointer;
+}
+
+.address-link-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 1000;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  min-width: 280px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.address-link-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  border: 6px solid transparent;
+  border-top-color: var(--border-color);
+}
+
+.address-link-wrapper:hover .address-link-tooltip {
+  display: block;
+  animation: tooltip-fade-in 0.15s ease-out;
+}
+
+.address-link-full {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  word-break: break-all;
+  margin-bottom: 0.5rem;
+}
+
+.address-link-explorer {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--safe-green);
+  text-decoration: none;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.address-link-explorer:hover {
+  text-decoration: underline;
+}
+
 /* Decoded Summary Inline */
 .decoded-summary-inline {
   display: inline-flex;

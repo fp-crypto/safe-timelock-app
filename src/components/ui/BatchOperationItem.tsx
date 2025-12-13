@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Hex, Address } from 'viem';
 import { DecodedCalldata, DecodedCalldataSummary } from '../DecodedCalldata';
+import { AddressLink } from './AddressLink';
 
 export interface BatchOperationItemProps {
   index: number;
@@ -24,7 +25,7 @@ export function BatchOperationItem({ index, operation }: BatchOperationItemProps
         <div className="batch-operation-content">
           <div className="op-details">
             <div>
-              <span className="label">Target:</span> <code>{operation.target}</code>
+              <span className="label">Target:</span> <AddressLink address={operation.target} truncate={false} />
             </div>
             <div>
               <span className="label">Value:</span> <code>{operation.value} wei</code>

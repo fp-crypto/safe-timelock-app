@@ -57,6 +57,7 @@ export function useOperationStatus(
     ],
     query: {
       enabled: !!timelockAddress && !!operationId,
+      refetchOnWindowFocus: false,
     },
   });
 
@@ -94,6 +95,7 @@ export function useMinDelay(timelockAddress: Address | undefined): {
     functionName: 'getMinDelay',
     query: {
       enabled: !!timelockAddress,
+      refetchOnWindowFocus: false,
     },
   });
 

@@ -13,6 +13,8 @@ const queryClient = new QueryClient({
     queries: {
       // Cache data for 24 hours in garbage collection
       gcTime: 24 * 60 * 60 * 1000,
+      // Don't refetch when window regains focus (reduce API calls when tab is backgrounded)
+      refetchOnWindowFocus: false,
     },
   },
 });

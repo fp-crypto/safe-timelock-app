@@ -187,6 +187,7 @@ export function useScheduledOperations(
     contracts: statusContracts,
     query: {
       enabled: statusContracts.length > 0,
+      refetchOnWindowFocus: false,
     },
   });
 

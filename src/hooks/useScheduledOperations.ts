@@ -31,6 +31,7 @@ export interface ScheduledOperation {
   confirmations: number;
   confirmationsRequired: number;
   timelockStatus?: {
+    isOperation: boolean;
     isPending: boolean;
     isReady: boolean;
     isDone: boolean;
@@ -156,6 +157,12 @@ export function useScheduledOperations(
         {
           address: timelockAddress,
           abi: TIMELOCK_ABI,
+          functionName: 'isOperation',
+          args: [operationId],
+        },
+        {
+          address: timelockAddress,
+          abi: TIMELOCK_ABI,
           functionName: 'isOperationPending',
           args: [operationId],
         },
@@ -194,6 +201,7 @@ export function useScheduledOperations(
   // Parse status data into a map
   const statusMap = useMemo(() => {
     const map = new Map<Hex, {
+      isOperation: boolean;
       isPending: boolean;
       isReady: boolean;
       isDone: boolean;
@@ -204,15 +212,17 @@ export function useScheduledOperations(
 
     for (let i = 0; i < executedOperationIds.length; i++) {
       const operationId = executedOperationIds[i];
-      const baseIdx = i * 4;
+      const baseIdx = i * 5;
 
-      const isPending = statusData[baseIdx]?.result as boolean | undefined;
-      const isReady = statusData[baseIdx + 1]?.result as boolean | undefined;
-      const isDone = statusData[baseIdx + 2]?.result as boolean | undefined;
-      const timestamp = statusData[baseIdx + 3]?.result as bigint | undefined;
+      const isOperation = statusData[baseIdx]?.result as boolean | undefined;
+      const isPending = statusData[baseIdx + 1]?.result as boolean | undefined;
+      const isReady = statusData[baseIdx + 2]?.result as boolean | undefined;
+      const isDone = statusData[baseIdx + 3]?.result as boolean | undefined;
+      const timestamp = statusData[baseIdx + 4]?.result as bigint | undefined;
 
-      if (isPending !== undefined && isReady !== undefined && isDone !== undefined) {
+      if (isOperation !== undefined && isPending !== undefined && isReady !== undefined && isDone !== undefined) {
         map.set(operationId, {
+          isOperation: isOperation ?? false,
           isPending: isPending ?? false,
           isReady: isReady ?? false,
           isDone: isDone ?? false,
@@ -250,6 +260,9 @@ export function useScheduledOperations(
       if (!decoded.operationId) continue;
 
       const status = statusMap.get(decoded.operationId);
+
+      // Skip if cancelled (isOperation returns false for cancelled operations)
+      if (status && !status.isOperation) continue;
 
       // Skip if already executed on timelock
       if (status?.isDone) continue;

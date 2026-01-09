@@ -1420,6 +1420,143 @@ body {
 }
 
 /* ============================================================
+   API KEYS CONFIG
+   ============================================================ */
+
+.api-keys-config {
+  max-width: 800px;
+  margin: 0 auto 1.5rem;
+  padding: 0 1rem;
+}
+
+.api-keys-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.5rem 0;
+  width: 100%;
+  text-align: left;
+}
+
+.api-keys-toggle:hover {
+  color: var(--text-primary);
+}
+
+.api-keys-count {
+  margin-left: auto;
+  background: var(--bg-tertiary);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--neon-green);
+}
+
+.api-keys-content {
+  margin-top: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.api-keys-description {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.api-key-item {
+  background: var(--bg-tertiary);
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 0.75rem;
+}
+
+.api-key-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.api-key-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.api-key-status {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.api-key-status-configured {
+  background: rgba(18, 255, 128, 0.1);
+  color: var(--neon-green);
+}
+
+.api-key-status-not-configured {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.api-key-desc {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.api-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.api-key-input {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.api-key-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--glow-xs) var(--neon-green-glow);
+}
+
+.api-key-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.api-key-actions .btn-small {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.api-key-link {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.api-key-link:hover {
+  color: var(--neon-green);
+}
+
+/* ============================================================
    BATCH OPERATION EXPANDABLE
    ============================================================ */
 

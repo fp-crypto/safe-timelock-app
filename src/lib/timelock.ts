@@ -2,6 +2,7 @@ import {
   encodeAbiParameters,
   parseAbiParameters,
   keccak256,
+  concat,
   encodeFunctionData,
   decodeFunctionData,
   decodeAbiParameters,
@@ -520,6 +521,13 @@ export function generateRandomSalt(): Hex {
   return `0x${Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')}` as Hex;
+}
+
+// Generate deterministic salt from calldata(s)
+export function generateDeterministicSalt(payloads: Hex[]): Hex {
+  if (payloads.length === 0) return zeroHash;
+  const combined = payloads.length === 1 ? payloads[0] : concat(payloads);
+  return keccak256(combined);
 }
 
 // Format delay as human readable

@@ -11,6 +11,7 @@ import {
   HashTab,
   CancelTab,
 } from './tabs';
+import { ApiKeysConfig } from './components/ApiKeysConfig';
 
 const TIMELOCK_ADDRESS_KEY = 'safe-timelock-address';
 
@@ -163,6 +164,8 @@ export function App() {
           )}
         </div>
       </main>
+
+      <ApiKeysConfig />
 
       <footer className="app-footer">
         <div className="workflow-hint">

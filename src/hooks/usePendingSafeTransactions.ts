@@ -1,6 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Address, Hex } from 'viem';
 import { extractTimelockCalldata } from '../lib/timelock';
+import { getApiKey } from '../lib/api-keys';
+
+/**
+ * Fetch wrapper that adds Safe API key auth header if configured
+ */
+function safeFetch(url: string): Promise<Response> {
+  const headers: HeadersInit = {};
+  const apiKey = getApiKey('safe');
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+  return fetch(url, { headers });
+}
 
 // Cache durations
 const SAFE_INFO_STALE_TIME = 30 * 60 * 1000; // 30 minutes
@@ -56,7 +69,7 @@ async function fetchSafeInfo(
   safeAddress: Address
 ): Promise<SafeInfo> {
   const url = `${baseUrl}/api/v1/safes/${safeAddress}/`;
-  const response = await fetch(url);
+  const response = await safeFetch(url);
   if (response.status === 429) {
     throw new Error('429: Rate limited by Safe Transaction Service');
   }
@@ -76,7 +89,7 @@ async function fetchPendingTransactions(
     throw new Error(`Unsupported chain: ${chainId}`);
   }
 
-  const response = await fetch(
+  const response = await safeFetch(
     `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=false&limit=20`
   );
 
@@ -126,9 +139,9 @@ export async function fetchExecutedTransactions(
     throw new Error(`Unsupported chain: ${chainId}`);
   }
 
-  let url = `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=true&limit=200&ordering=-executionDate`;
+  const url = `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=true&limit=200&ordering=-executionDate`;
 
-  const response = await fetch(url);
+  const response = await safeFetch(url);
   if (response.status === 429) {
     throw new Error('429: Rate limited by Safe Transaction Service');
   }

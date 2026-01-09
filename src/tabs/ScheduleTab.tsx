@@ -8,6 +8,7 @@ import {
   encodeSchedule,
   encodeScheduleBatch,
   generateRandomSalt,
+  generateDeterministicSalt,
   formatDelay,
 } from '../lib/timelock';
 import { parseUrlState, type Operation as UrlOperation } from '../hooks/useUrlState';
@@ -188,6 +189,15 @@ export function ScheduleTab({
         <InputField label="Salt" value={salt} onChange={setSalt} placeholder={zeroHash} mono />
         <button onClick={() => setSalt(generateRandomSalt())} className="btn btn-secondary">
           Random
+        </button>
+        <button
+          onClick={() => {
+            const payloads = operations.map((op) => op.data as Hex);
+            setSalt(generateDeterministicSalt(payloads));
+          }}
+          className="btn btn-secondary"
+        >
+          From Data
         </button>
       </div>
       <InputField

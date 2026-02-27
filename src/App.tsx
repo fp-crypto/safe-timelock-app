@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { type Address, isAddress } from 'viem';
-import { useAutoConnect } from './hooks/useAutoConnect';
+import { useAccount } from 'wagmi';
+import { useAutoConnect, useIsSafeApp } from './hooks/useAutoConnect';
 import { useUrlState, type Operation as UrlOperation } from './hooks/useUrlState';
 import { InputField } from './components/ui';
 import { WalletConnection } from './components/WalletConnection';
@@ -14,18 +15,41 @@ import {
 import { ApiKeysConfig } from './components/ApiKeysConfig';
 
 const TIMELOCK_ADDRESS_KEY = 'safe-timelock-address';
+const SAFE_ADDRESS_KEY = 'safe-address';
 
 export function App() {
-  // Get localStorage timelock for fallback
+  // Get localStorage values for fallback
   const localStorageTimelock = typeof window !== 'undefined'
     ? localStorage.getItem(TIMELOCK_ADDRESS_KEY) || ''
     : '';
+  const localStorageSafe = typeof window !== 'undefined'
+    ? localStorage.getItem(SAFE_ADDRESS_KEY) || ''
+    : '';
 
   // URL state management
-  const { initialState, updateUrl, clearTabState, getCurrentShareableUrl } = useUrlState(localStorageTimelock);
+  const { initialState, updateUrl, clearTabState, getCurrentShareableUrl } = useUrlState(localStorageTimelock, localStorageSafe);
 
   const [activeTab, setActiveTab] = useState(initialState.tab);
   const [timelockAddress, setTimelockAddress] = useState(initialState.timelock);
+  const [safeAddressInput, setSafeAddressInput] = useState(initialState.safe);
+
+  // Auto-connect to Safe if in iframe
+  useAutoConnect();
+
+  // Detect if connected as Safe and get connected address
+  const { address: connectedAddress } = useAccount();
+  const isSafeApp = useIsSafeApp();
+
+  // Compute effective Safe address: input overrides, otherwise use connected Safe
+  const effectiveSafeAddress = useMemo(() => {
+    if (safeAddressInput && isAddress(safeAddressInput)) {
+      return safeAddressInput as Address;
+    }
+    if (isSafeApp && connectedAddress) {
+      return connectedAddress;
+    }
+    return undefined;
+  }, [safeAddressInput, isSafeApp, connectedAddress]);
 
   // Persist timelock address to localStorage and URL
   useEffect(() => {
@@ -35,13 +59,20 @@ export function App() {
     updateUrl({ timelock: timelockAddress });
   }, [timelockAddress, updateUrl]);
 
+  // Persist safe address to localStorage and URL
+  useEffect(() => {
+    if (safeAddressInput) {
+      localStorage.setItem(SAFE_ADDRESS_KEY, safeAddressInput);
+    } else {
+      localStorage.removeItem(SAFE_ADDRESS_KEY);
+    }
+    updateUrl({ safe: safeAddressInput });
+  }, [safeAddressInput, updateUrl]);
+
   // Update URL when tab changes
   useEffect(() => {
     updateUrl({ tab: activeTab });
   }, [activeTab, updateUrl]);
-
-  // Auto-connect to Safe if in iframe
-  useAutoConnect();
 
   const tabs = [
     { id: 'schedule', label: 'Schedule', icon: '📅' },
@@ -97,6 +128,16 @@ export function App() {
             mono
             helper="The TimelockController contract owned by your Safe"
           />
+          <InputField
+            label="Safe Address"
+            value={safeAddressInput}
+            onChange={setSafeAddressInput}
+            placeholder={isSafeApp && connectedAddress ? connectedAddress : '0x...'}
+            mono
+            helper={isSafeApp && connectedAddress && !safeAddressInput
+              ? `Using connected Safe (${connectedAddress.slice(0, 6)}...${connectedAddress.slice(-4)})`
+              : 'The Safe multisig that owns the timelock (optional if connected as Safe)'}
+          />
         </div>
 
         <nav className="tab-nav">
@@ -121,15 +162,18 @@ export function App() {
               onUpdate={handleScheduleUpdate}
               onClear={clearTabState}
               getShareableUrl={getCurrentShareableUrl}
+              isSafeApp={isSafeApp}
             />
           )}
           {activeTab === 'execute' && (
             <ExecuteTab
               timelockAddress={validTimelockAddress}
+              safeAddress={effectiveSafeAddress}
               initialOps={initialState.ops}
               onUpdate={handleExecuteUpdate}
               onClear={clearTabState}
               getShareableUrl={getCurrentShareableUrl}
+              isSafeApp={isSafeApp}
             />
           )}
           {activeTab === 'decode' && (
@@ -145,6 +189,7 @@ export function App() {
           {activeTab === 'hash' && (
             <HashTab
               timelockAddress={validTimelockAddress}
+              safeAddress={effectiveSafeAddress}
               initialTarget={initialState.target}
               initialValue={initialState.value}
               initialData={initialState.data}
@@ -156,10 +201,12 @@ export function App() {
           {activeTab === 'cancel' && (
             <CancelTab
               timelockAddress={validTimelockAddress}
+              safeAddress={effectiveSafeAddress}
               initialOpId={initialState.opId}
               onUpdate={handleCancelUpdate}
               onClear={clearTabState}
               getShareableUrl={getCurrentShareableUrl}
+              isSafeApp={isSafeApp}
             />
           )}
         </div>

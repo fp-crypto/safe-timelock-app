@@ -40,6 +40,7 @@ export function verifyChecksum(search: string): { valid: boolean; hasChecksum: b
 export interface UrlState {
   tab: string;
   timelock: string;
+  safe: string;
   ops: Operation[];
   delay: string;
   opId: string;
@@ -53,6 +54,7 @@ export interface UrlState {
 const DEFAULT_STATE: UrlState = {
   tab: 'schedule',
   timelock: '',
+  safe: '',
   ops: [{ target: '', value: '0', data: '0x' }],
   delay: '86400',
   opId: '',
@@ -113,6 +115,9 @@ export function parseUrlState(): Partial<UrlState> {
   const timelock = params.get('timelock');
   if (timelock) state.timelock = timelock;
 
+  const safe = params.get('safe');
+  if (safe) state.safe = safe;
+
   const opsEncoded = params.get('ops');
   if (opsEncoded) {
     const ops = decodeOps(opsEncoded);
@@ -152,6 +157,10 @@ function buildUrl(state: Partial<UrlState>): string {
 
   if (state.timelock) {
     params.set('timelock', state.timelock);
+  }
+
+  if (state.safe) {
+    params.set('safe', state.safe);
   }
 
   if (state.ops && state.ops.length > 0) {
@@ -204,7 +213,7 @@ export function getShareableUrl(state: Partial<UrlState>): string {
   return `${window.location.origin}${window.location.pathname}${path.startsWith('?') ? path : ''}`;
 }
 
-export function useUrlState(localStorageTimelock: string): {
+export function useUrlState(localStorageTimelock: string, localStorageSafe: string): {
   initialState: UrlState;
   updateUrl: (state: Partial<UrlState>) => void;
   clearTabState: () => void;
@@ -225,6 +234,7 @@ export function useUrlState(localStorageTimelock: string): {
           return {
             ...DEFAULT_STATE,
             timelock: urlState.timelock || parsed.timelock || localStorageTimelock || '',
+            safe: urlState.safe || parsed.safe || localStorageSafe || '',
             ...parsed,
             ...urlState, // URL params still take priority
           };
@@ -237,6 +247,7 @@ export function useUrlState(localStorageTimelock: string): {
     return {
       ...DEFAULT_STATE,
       timelock: urlState.timelock || localStorageTimelock || '',
+      safe: urlState.safe || localStorageSafe || '',
       ...urlState,
     };
   });
@@ -276,46 +287,50 @@ export function useUrlState(localStorageTimelock: string): {
       clearTimeout(debounceRef.current);
     }
 
-    // Keep only tab and timelock in URL
+    // Keep only tab, timelock, and safe in URL
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
     const timelock = params.get('timelock');
+    const safe = params.get('safe');
 
     const newParams = new URLSearchParams();
     if (tab) newParams.set('tab', tab);
     if (timelock) newParams.set('timelock', timelock);
+    if (safe) newParams.set('safe', safe);
 
     const search = newParams.toString();
     const url = search ? `?${search}` : window.location.pathname;
     window.history.replaceState(null, '', url);
 
-    // Reset current state ref to only keep tab and timelock
+    // Reset current state ref to only keep tab, timelock, and safe
     currentStateRef.current = {
       tab: tab || undefined,
       timelock: timelock || undefined,
+      safe: safe || undefined,
     };
 
-    // Update iframe localStorage fallback, preserving timelock
+    // Update iframe localStorage fallback, preserving timelock and safe
     if (isIframeMode.current) {
-      // Preserve timelock from existing storage if not in URL
       let preservedTimelock = timelock;
-      if (!preservedTimelock) {
+      let preservedSafe = safe;
+      if (!preservedTimelock || !preservedSafe) {
         try {
           const stored = localStorage.getItem(APP_STATE_KEY);
           if (stored) {
             const parsed = JSON.parse(stored);
-            preservedTimelock = parsed.timelock;
+            if (!preservedTimelock) preservedTimelock = parsed.timelock;
+            if (!preservedSafe) preservedSafe = parsed.safe;
           }
         } catch {
           // Ignore parse errors
         }
       }
 
-      // Store only tab and timelock, clearing all other fields
-      if (preservedTimelock || tab) {
+      if (preservedTimelock || preservedSafe || tab) {
         localStorage.setItem(APP_STATE_KEY, JSON.stringify({
           tab: tab || undefined,
           timelock: preservedTimelock || undefined,
+          safe: preservedSafe || undefined,
         }));
       } else {
         localStorage.removeItem(APP_STATE_KEY);

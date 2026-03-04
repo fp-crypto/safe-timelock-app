@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useAccount, useChainId } from 'wagmi';
-import type { Address } from 'viem';
+import { useChainId } from 'wagmi';
+import type { Address, Hex } from 'viem';
 import {
   useScheduledOperations,
   type ScheduledOperation,
@@ -9,7 +9,8 @@ import { formatDelay, type DecodedTimelock } from '../lib/timelock';
 
 interface ScheduledOperationsProps {
   timelockAddress: string;
-  onSelect: (decoded: DecodedTimelock) => void;
+  safeAddress: Address | undefined;
+  onSelect: (decoded: DecodedTimelock, calldata: Hex) => void;
 }
 
 function formatTimeUntilReady(timestamp: bigint): string {
@@ -97,7 +98,7 @@ function OperationRow({
   onSelect,
 }: {
   op: ScheduledOperation;
-  onSelect: (decoded: DecodedTimelock) => void;
+  onSelect: (decoded: DecodedTimelock, calldata: Hex) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -169,7 +170,7 @@ function OperationRow({
 
   return (
     <div className={`scheduled-op-row ${statusClass}`}>
-      <div className="scheduled-op-main" onClick={() => onSelect(op.decoded)}>
+      <div className="scheduled-op-main" onClick={() => onSelect(op.decoded, op.timelockCalldata)}>
         <div className="scheduled-op-info">
           {op.safeStatus === 'pending' && (
             <span className="scheduled-op-nonce">#{op.nonce}</span>
@@ -224,25 +225,25 @@ function OperationRow({
 
 export function ScheduledOperations({
   timelockAddress,
+  safeAddress,
   onSelect,
 }: ScheduledOperationsProps) {
-  const { address, isConnected } = useAccount();
   const chainId = useChainId();
 
   const { operations, isLoading, error, refetch } = useScheduledOperations(
-    address as Address | undefined,
+    safeAddress,
     chainId,
     timelockAddress as Address | undefined
   );
 
-  if (!isConnected) {
+  if (!safeAddress) {
     return (
       <div className="scheduled-ops-section">
         <div className="scheduled-ops-header">
           <span className="scheduled-ops-title">Scheduled Operations</span>
         </div>
         <div className="scheduled-ops-empty">
-          Connect to a Safe to load scheduled operations
+          Enter a Safe address or connect as Safe to load scheduled operations
         </div>
       </div>
     );
@@ -282,8 +283,6 @@ export function ScheduledOperations({
       displayMessage = 'Rate limited by Safe Transaction Service. Please wait a moment.';
     } else if (isNetworkError) {
       displayMessage = 'Network error. Check your connection.';
-    } else if (!address) {
-      displayMessage = 'Are you connected to a Safe?';
     }
 
     return (

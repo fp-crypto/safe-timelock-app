@@ -9,18 +9,22 @@ import { parseUrlState } from '../hooks/useUrlState';
 
 interface CancelTabProps {
   timelockAddress: Address | undefined;
+  safeAddress: Address | undefined;
   initialOpId: string;
   onUpdate: (opId: string) => void;
   onClear: () => void;
   getShareableUrl: () => string;
+  isSafeApp: boolean;
 }
 
 export function CancelTab({
   timelockAddress,
+  safeAddress,
   initialOpId,
   onUpdate,
   onClear,
   getShareableUrl,
+  isSafeApp,
 }: CancelTabProps) {
   const [operationId, setOperationId] = useState(() => {
     const current = parseUrlState();
@@ -83,6 +87,7 @@ export function CancelTab({
 
       <ScheduledOperations
         timelockAddress={timelockAddress || ''}
+        safeAddress={safeAddress}
         onSelect={handleSelectScheduled}
       />
 
@@ -100,7 +105,7 @@ export function CancelTab({
         </button>
         {output && isConnected && timelockAddress && (
           <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
-            {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : 'Submit to Safe'}
+            {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : isSafeApp ? 'Submit to Safe' : 'Send Transaction'}
           </button>
         )}
       </div>

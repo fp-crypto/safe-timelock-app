@@ -15,18 +15,22 @@ import { parseUrlState, type Operation as UrlOperation } from '../hooks/useUrlSt
 
 interface ExecuteTabProps {
   timelockAddress: Address | undefined;
+  safeAddress: Address | undefined;
   initialOps: UrlOperation[];
   onUpdate: (ops: UrlOperation[]) => void;
   onClear: () => void;
   getShareableUrl: () => string;
+  isSafeApp: boolean;
 }
 
 export function ExecuteTab({
   timelockAddress,
+  safeAddress,
   initialOps,
   onUpdate,
   onClear,
   getShareableUrl,
+  isSafeApp,
 }: ExecuteTabProps) {
   const [importCalldata, setImportCalldata] = useState('');
   const [operations, setOperations] = useState(() => {
@@ -186,6 +190,7 @@ export function ExecuteTab({
 
       <ScheduledOperations
         timelockAddress={timelockAddress || ''}
+        safeAddress={safeAddress}
         onSelect={handleSelectScheduled}
       />
 
@@ -279,7 +284,7 @@ export function ExecuteTab({
         </button>
         {output.calldata && isConnected && timelockAddress && (
           <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
-            {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : 'Submit to Safe'}
+            {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : isSafeApp ? 'Submit to Safe' : 'Send Transaction'}
           </button>
         )}
       </div>

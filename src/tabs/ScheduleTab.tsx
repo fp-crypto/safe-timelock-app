@@ -20,6 +20,7 @@ interface ScheduleTabProps {
   onUpdate: (ops: UrlOperation[], delay: string) => void;
   onClear: () => void;
   getShareableUrl: () => string;
+  isSafeApp: boolean;
 }
 
 export function ScheduleTab({
@@ -29,6 +30,7 @@ export function ScheduleTab({
   onUpdate,
   onClear,
   getShareableUrl,
+  isSafeApp,
 }: ScheduleTabProps) {
   const [operations, setOperations] = useState(() => {
     const current = parseUrlState();
@@ -218,7 +220,7 @@ export function ScheduleTab({
         </button>
         {output.calldata && isConnected && timelockAddress && (
           <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
-            {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : 'Submit to Safe'}
+            {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : isSafeApp ? 'Submit to Safe' : 'Send Transaction'}
           </button>
         )}
       </div>

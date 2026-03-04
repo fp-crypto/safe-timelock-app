@@ -12,6 +12,7 @@ import { parseUrlState, type Operation as UrlOperation } from '../hooks/useUrlSt
 
 interface HashTabProps {
   timelockAddress: Address | undefined;
+  safeAddress: Address | undefined;
   initialTarget: string;
   initialValue: string;
   initialData: string;
@@ -22,6 +23,7 @@ interface HashTabProps {
 
 export function HashTab({
   timelockAddress,
+  safeAddress,
   initialTarget,
   initialValue,
   initialData,
@@ -170,6 +172,7 @@ export function HashTab({
 
       <ScheduledOperations
         timelockAddress={timelockAddress || ''}
+        safeAddress={safeAddress}
         onSelect={handleSelectScheduled}
       />
 

@@ -21,11 +21,25 @@ function getMultiSendAddresses(): Set<string> {
   for (const version of ['1.3.0', '1.4.1'] as const) {
     const multiSend = getMultiSendDeployment({ version });
     const callOnly = getMultiSendCallOnlyDeployment({ version });
+
+    // Add default addresses
     if (multiSend?.defaultAddress) {
       addresses.add(multiSend.defaultAddress.toLowerCase());
     }
     if (callOnly?.defaultAddress) {
       addresses.add(callOnly.defaultAddress.toLowerCase());
+    }
+
+    // Add all network-specific addresses (handles chains like Base with different addresses)
+    if (multiSend?.networkAddresses) {
+      for (const addr of Object.values(multiSend.networkAddresses)) {
+        addresses.add(addr.toLowerCase());
+      }
+    }
+    if (callOnly?.networkAddresses) {
+      for (const addr of Object.values(callOnly.networkAddresses)) {
+        addresses.add(addr.toLowerCase());
+      }
     }
   }
   return addresses;

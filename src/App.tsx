@@ -182,6 +182,7 @@ export function App() {
               initialDecode={initialState.decode}
               onUpdate={handleDecodeUpdate}
               timelockAddress={timelockAddress}
+              safeAddress={effectiveSafeAddress}
               onClear={clearTabState}
               getShareableUrl={getCurrentShareableUrl}
             />

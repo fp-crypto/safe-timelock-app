@@ -3,7 +3,7 @@ import { type Hex, type Address } from 'viem';
 import { InputField, OutputDisplay, BatchOperationItem, CopyLinkButton } from '../components/ui';
 import { DecodedCalldata } from '../components/DecodedCalldata';
 import { AbiManager } from '../components/AbiManager';
-import { PendingSafeTransactions } from '../components/PendingSafeTransactions';
+import { ScheduledOperations } from '../components/ScheduledOperations';
 import { decodeTimelockCalldata, formatDelay } from '../lib/timelock';
 import { parseUrlState } from '../hooks/useUrlState';
 
@@ -12,6 +12,7 @@ interface DecodeTabProps {
   initialDecode: boolean;
   onUpdate: (calldata: string, decode: boolean) => void;
   timelockAddress: string;
+  safeAddress: Address | undefined;
   onClear: () => void;
   getShareableUrl: () => string;
 }
@@ -21,6 +22,7 @@ export function DecodeTab({
   initialDecode,
   onUpdate,
   timelockAddress,
+  safeAddress,
   onClear,
   getShareableUrl,
 }: DecodeTabProps) {
@@ -56,8 +58,8 @@ export function DecodeTab({
     }
   }, [initialDecode, initialCalldata, hasAutoDecoded, decode]);
 
-  const handleSelectPendingTx = useCallback((data: string) => {
-    setCalldata(data);
+  const handleSelectOperation = useCallback((_decoded: ReturnType<typeof decodeTimelockCalldata>, calldata: string) => {
+    setCalldata(calldata);
     setDecoded(null);
     setError('');
   }, []);
@@ -82,9 +84,10 @@ export function DecodeTab({
         <p>Paste TimelockController calldata to decode and inspect it.</p>
       </div>
 
-      <PendingSafeTransactions
+      <ScheduledOperations
         timelockAddress={timelockAddress}
-        onSelect={handleSelectPendingTx}
+        safeAddress={safeAddress}
+        onSelect={handleSelectOperation}
       />
 
       <InputField

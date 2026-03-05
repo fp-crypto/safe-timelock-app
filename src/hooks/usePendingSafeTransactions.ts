@@ -23,10 +23,12 @@ const PENDING_TX_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
 export interface SafeTransaction {
   safeTxHash: string;
+  transactionHash?: string | null;
   to: string;
   data: string;
   value: string;
   nonce: number;
+  executionDate?: string | null;
   confirmations: Array<{
     owner: string;
     submissionDate: string;
@@ -139,24 +141,44 @@ export async function fetchExecutedTransactions(
     throw new Error(`Unsupported chain: ${chainId}`);
   }
 
-  const url = `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=true&limit=200&ordering=-executionDate`;
+  const allResults: SafeTransaction[] = [];
+  const limit = 200;
+  const maxPages = 10;
 
-  const response = await safeFetch(url);
-  if (response.status === 429) {
-    throw new Error('429: Rate limited by Safe Transaction Service');
+  for (let page = 0; page < maxPages; page++) {
+    const offset = page * limit;
+    const url = `${baseUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=true&limit=${limit}&offset=${offset}&ordering=-executionDate`;
+
+    const response = await safeFetch(url);
+    if (response.status === 429) {
+      throw new Error('429: Rate limited by Safe Transaction Service');
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch executed transactions: ${response.status}`);
+    }
+
+    const data: SafeTransactionResponse = await response.json();
+    if (data.results.length === 0) break;
+
+    for (const tx of data.results) {
+      const activityDate = new Date(tx.executionDate ?? tx.submissionDate);
+      if (!sinceDate || activityDate >= sinceDate) {
+        allResults.push(tx);
+      }
+    }
+
+    // Results are ordered by execution date descending.
+    // Once the oldest tx in this page is before our cutoff, later pages are older too.
+    if (sinceDate) {
+      const oldestInPage = data.results[data.results.length - 1];
+      const oldestDate = new Date(oldestInPage.executionDate ?? oldestInPage.submissionDate);
+      if (oldestDate < sinceDate) break;
+    }
+
+    if (data.results.length < limit) break;
   }
-  if (!response.ok) {
-    throw new Error(`Failed to fetch executed transactions: ${response.status}`);
-  }
 
-  const data: SafeTransactionResponse = await response.json();
-
-  // Filter by date if provided
-  if (sinceDate) {
-    return data.results.filter((tx) => new Date(tx.submissionDate) >= sinceDate);
-  }
-
-  return data.results;
+  return allResults;
 }
 
 export function usePendingSafeTransactions(

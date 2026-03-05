@@ -15,6 +15,11 @@ import {
   TIMELOCK_ABI,
   type DecodedTimelock,
 } from '../lib/timelock';
+import {
+  deriveTimelockStatusFromTimestamp,
+  isDisplayableScheduledStatus,
+  type TimelockOperationStatus,
+} from '../lib/timelock-status';
 
 // Cache durations
 const EXECUTED_TX_STALE_TIME = 10 * 60 * 1000; // 10 minutes
@@ -30,16 +35,11 @@ export interface ScheduledOperation {
   safeStatus: 'pending' | 'executed';
   confirmations: number;
   confirmationsRequired: number;
-  timelockStatus?: {
-    isOperation: boolean;
-    isPending: boolean;
-    isReady: boolean;
-    isDone: boolean;
-    timestamp: bigint;
-  };
+  timelockStatus?: TimelockOperationStatus;
 }
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const ONE_HUNDRED_EIGHTY_DAYS_MS = 180 * 24 * 60 * 60 * 1000;
 
 export function useScheduledOperations(
   safeAddress: Address | undefined,
@@ -60,12 +60,12 @@ export function useScheduledOperations(
   // Calculate lookback date based on minDelay
   const sinceDate = useMemo(() => {
     if (minDelay !== undefined) {
-      // Look back minDelay + 30 days
-      const lookbackMs = Number(minDelay) * 1000 + THIRTY_DAYS_MS;
+      // Keep at least 6 months of history so long-lived ready ops still appear.
+      const lookbackMs = Math.max(Number(minDelay) * 1000 + THIRTY_DAYS_MS, ONE_HUNDRED_EIGHTY_DAYS_MS);
       return new Date(Date.now() - lookbackMs);
     }
-    // Default to 30 days if minDelay not available
-    return new Date(Date.now() - THIRTY_DAYS_MS);
+    // Default to 6 months if minDelay not available
+    return new Date(Date.now() - ONE_HUNDRED_EIGHTY_DAYS_MS);
   }, [minDelay]);
 
   // Fetch executed Safe transactions
@@ -141,7 +141,7 @@ export function useScheduledOperations(
       .filter((id): id is Hex => !!id);
   }, [executedScheduleOps]);
 
-  // Batch query on-chain status for executed operations
+  // Batch query on-chain timestamps for executed operations
   const statusContracts = useMemo(() => {
     if (!timelockAddress || executedOperationIds.length === 0) return [];
 
@@ -153,38 +153,12 @@ export function useScheduledOperations(
     }> = [];
 
     for (const operationId of executedOperationIds) {
-      contracts.push(
-        {
-          address: timelockAddress,
-          abi: TIMELOCK_ABI,
-          functionName: 'isOperation',
-          args: [operationId],
-        },
-        {
-          address: timelockAddress,
-          abi: TIMELOCK_ABI,
-          functionName: 'isOperationPending',
-          args: [operationId],
-        },
-        {
-          address: timelockAddress,
-          abi: TIMELOCK_ABI,
-          functionName: 'isOperationReady',
-          args: [operationId],
-        },
-        {
-          address: timelockAddress,
-          abi: TIMELOCK_ABI,
-          functionName: 'isOperationDone',
-          args: [operationId],
-        },
-        {
-          address: timelockAddress,
-          abi: TIMELOCK_ABI,
-          functionName: 'getTimestamp',
-          args: [operationId],
-        }
-      );
+      contracts.push({
+        address: timelockAddress,
+        abi: TIMELOCK_ABI,
+        functionName: 'getTimestamp',
+        args: [operationId],
+      });
     }
 
     return contracts;
@@ -192,6 +166,7 @@ export function useScheduledOperations(
 
   const { data: statusData, isLoading: statusLoading } = useReadContracts({
     contracts: statusContracts,
+    batchSize: 1024,
     query: {
       enabled: statusContracts.length > 0,
       refetchOnWindowFocus: false,
@@ -200,35 +175,20 @@ export function useScheduledOperations(
 
   // Parse status data into a map
   const statusMap = useMemo(() => {
-    const map = new Map<Hex, {
-      isOperation: boolean;
-      isPending: boolean;
-      isReady: boolean;
-      isDone: boolean;
-      timestamp: bigint;
-    }>();
+    const map = new Map<Hex, TimelockOperationStatus>();
 
     if (!statusData || statusData.length === 0) return map;
+    const now = BigInt(Math.floor(Date.now() / 1000));
 
     for (let i = 0; i < executedOperationIds.length; i++) {
       const operationId = executedOperationIds[i];
-      const baseIdx = i * 5;
+      const entry = statusData[i];
+      if (!entry || entry.status === 'failure') continue;
 
-      const isOperation = statusData[baseIdx]?.result as boolean | undefined;
-      const isPending = statusData[baseIdx + 1]?.result as boolean | undefined;
-      const isReady = statusData[baseIdx + 2]?.result as boolean | undefined;
-      const isDone = statusData[baseIdx + 3]?.result as boolean | undefined;
-      const timestamp = statusData[baseIdx + 4]?.result as bigint | undefined;
+      const timestamp = entry.result;
+      if (typeof timestamp !== 'bigint') continue;
 
-      if (isOperation !== undefined && isPending !== undefined && isReady !== undefined && isDone !== undefined) {
-        map.set(operationId, {
-          isOperation: isOperation ?? false,
-          isPending: isPending ?? false,
-          isReady: isReady ?? false,
-          isDone: isDone ?? false,
-          timestamp: timestamp ?? 0n,
-        });
-      }
+      map.set(operationId, deriveTimelockStatusFromTimestamp(timestamp, now));
     }
 
     return map;
@@ -260,12 +220,8 @@ export function useScheduledOperations(
       if (!decoded.operationId) continue;
 
       const status = statusMap.get(decoded.operationId);
-
-      // Skip if cancelled (isOperation returns false for cancelled operations)
-      if (status && !status.isOperation) continue;
-
-      // Skip if already executed on timelock
-      if (status?.isDone) continue;
+      // Fail closed for executed txs: include only when on-chain status confirms pending/ready.
+      if (!isDisplayableScheduledStatus(status)) continue;
 
       result.push({
         safeTxHash: tx.safeTxHash,

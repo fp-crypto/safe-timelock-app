@@ -2,7 +2,11 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { type Address, isAddress } from 'viem';
 import { useAccount } from 'wagmi';
 import { useAutoConnect, useIsSafeApp } from './hooks/useAutoConnect';
-import { useUrlState, type Operation as UrlOperation } from './hooks/useUrlState';
+import {
+  useUrlState,
+  getSupportedChainId,
+  type Operation as UrlOperation,
+} from './hooks/useUrlState';
 import { InputField } from './components/ui';
 import { WalletConnection } from './components/WalletConnection';
 import {
@@ -37,8 +41,10 @@ export function App() {
   useAutoConnect();
 
   // Detect if connected as Safe and get connected address
-  const { address: connectedAddress } = useAccount();
+  const { address: connectedAddress, chainId: connectedChainId, isConnected } = useAccount();
   const isSafeApp = useIsSafeApp();
+  const requestedChainId = getSupportedChainId(initialState.chainId);
+  const effectiveChainId = requestedChainId ?? (isConnected ? connectedChainId : undefined);
 
   // Compute effective Safe address: input overrides, otherwise use connected Safe
   const effectiveSafeAddress = useMemo(() => {
@@ -73,6 +79,10 @@ export function App() {
   useEffect(() => {
     updateUrl({ tab: activeTab });
   }, [activeTab, updateUrl]);
+
+  useEffect(() => {
+    updateUrl({ chainId: effectiveChainId ? String(effectiveChainId) : '' });
+  }, [effectiveChainId, updateUrl]);
 
   const tabs = [
     { id: 'schedule', label: 'Schedule', icon: '📅' },
@@ -156,6 +166,7 @@ export function App() {
         <div className="tab-panel">
           {activeTab === 'schedule' && (
             <ScheduleTab
+              chainId={effectiveChainId}
               timelockAddress={validTimelockAddress}
               initialOps={initialState.ops}
               initialDelay={initialState.delay}
@@ -167,9 +178,12 @@ export function App() {
           )}
           {activeTab === 'execute' && (
             <ExecuteTab
+              chainId={effectiveChainId}
+              initialChainId={initialState.chainId}
               timelockAddress={validTimelockAddress}
               safeAddress={effectiveSafeAddress}
               initialOps={initialState.ops}
+              initialOpId={initialState.opId}
               onUpdate={handleExecuteUpdate}
               onClear={clearTabState}
               getShareableUrl={getCurrentShareableUrl}
@@ -189,6 +203,7 @@ export function App() {
           )}
           {activeTab === 'hash' && (
             <HashTab
+              chainId={effectiveChainId}
               timelockAddress={validTimelockAddress}
               safeAddress={effectiveSafeAddress}
               initialTarget={initialState.target}
@@ -201,6 +216,7 @@ export function App() {
           )}
           {activeTab === 'cancel' && (
             <CancelTab
+              chainId={effectiveChainId}
               timelockAddress={validTimelockAddress}
               safeAddress={effectiveSafeAddress}
               initialOpId={initialState.opId}

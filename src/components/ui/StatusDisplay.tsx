@@ -1,13 +1,21 @@
 import type { Hex, Address } from 'viem';
 import { useOperationStatus } from '../../hooks/useTimelockStatus';
+import { chains } from '../../config/wagmi';
+
+type SupportedChainId = typeof chains[number]['id'];
 
 export interface StatusDisplayProps {
   timelockAddress: Address | undefined;
   operationId: Hex | undefined;
+  chainId?: number;
 }
 
-export function StatusDisplay({ timelockAddress, operationId }: StatusDisplayProps) {
-  const { status, isLoading, error, refetch } = useOperationStatus(timelockAddress, operationId);
+export function StatusDisplay({ timelockAddress, operationId, chainId }: StatusDisplayProps) {
+  const { status, isLoading, error, refetch } = useOperationStatus(
+    timelockAddress,
+    operationId,
+    chainId as SupportedChainId | undefined
+  );
 
   if (!timelockAddress || !operationId) return null;
 

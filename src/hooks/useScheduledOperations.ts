@@ -20,6 +20,9 @@ import {
   isDisplayableScheduledStatus,
   type TimelockOperationStatus,
 } from '../lib/timelock-status';
+import { chains } from '../config/wagmi';
+
+type SupportedChainId = typeof chains[number]['id'];
 
 // Cache durations
 const EXECUTED_TX_STALE_TIME = 10 * 60 * 1000; // 10 minutes
@@ -46,8 +49,10 @@ export function useScheduledOperations(
   chainId: number | undefined,
   timelockAddress: Address | undefined
 ) {
+  const supportedChainId = chainId as SupportedChainId | undefined;
+
   // Get minDelay to determine lookback period
-  const { minDelay } = useMinDelay(timelockAddress);
+  const { minDelay } = useMinDelay(timelockAddress, supportedChainId);
 
   // Fetch pending Safe transactions
   const {
@@ -146,6 +151,7 @@ export function useScheduledOperations(
     if (!timelockAddress || executedOperationIds.length === 0) return [];
 
     const contracts: Array<{
+      chainId?: SupportedChainId;
       address: Address;
       abi: typeof TIMELOCK_ABI;
       functionName: string;
@@ -154,6 +160,7 @@ export function useScheduledOperations(
 
     for (const operationId of executedOperationIds) {
       contracts.push({
+        chainId: supportedChainId,
         address: timelockAddress,
         abi: TIMELOCK_ABI,
         functionName: 'getTimestamp',

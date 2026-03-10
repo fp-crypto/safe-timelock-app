@@ -4,6 +4,7 @@ import { type Hex, type Address, isAddress, zeroHash } from 'viem';
 import { InputField, OutputDisplay, StatusDisplay, CopyLinkButton } from '../components/ui';
 import { CalldataBuilder } from '../components/CalldataBuilder';
 import { useMinDelay } from '../hooks/useTimelockStatus';
+import { chains } from '../config/wagmi';
 import {
   encodeSchedule,
   encodeScheduleBatch,
@@ -13,7 +14,10 @@ import {
 } from '../lib/timelock';
 import { parseUrlState, type Operation as UrlOperation } from '../hooks/useUrlState';
 
+type SupportedChainId = typeof chains[number]['id'];
+
 interface ScheduleTabProps {
+  chainId?: number;
   timelockAddress: Address | undefined;
   initialOps: UrlOperation[];
   initialDelay: string;
@@ -24,6 +28,7 @@ interface ScheduleTabProps {
 }
 
 export function ScheduleTab({
+  chainId,
   timelockAddress,
   initialOps,
   initialDelay,
@@ -49,11 +54,16 @@ export function ScheduleTab({
     onUpdate(operations, delay);
   }, [operations, delay, onUpdate]);
 
-  const { isConnected } = useAccount();
+  const { isConnected, chainId: walletChainId } = useAccount();
   const { sendTransaction, data: txHash, isPending } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const isChainMismatch =
+    !!isConnected &&
+    !!chainId &&
+    walletChainId !== undefined &&
+    walletChainId !== chainId;
 
-  const { minDelay } = useMinDelay(timelockAddress);
+  const { minDelay } = useMinDelay(timelockAddress, chainId as SupportedChainId | undefined);
 
   const handleClear = useCallback(() => {
     setOperations([{ target: '', value: '0', data: '0x' }]);
@@ -112,7 +122,7 @@ export function ScheduleTab({
   }, [operations, predecessor, salt, delay]);
 
   const submit = () => {
-    if (!timelockAddress || !output.calldata) return;
+    if (!timelockAddress || !output.calldata || isChainMismatch) return;
     sendTransaction({
       to: timelockAddress,
       data: output.calldata as Hex,
@@ -219,13 +229,22 @@ export function ScheduleTab({
           Encode {isBatch ? 'Batch' : 'Schedule'}
         </button>
         {output.calldata && isConnected && timelockAddress && (
-          <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
+          <button
+            onClick={submit}
+            disabled={isPending || isConfirming || isChainMismatch}
+            className="btn btn-success"
+          >
             {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : isSafeApp ? 'Submit to Safe' : 'Send Transaction'}
           </button>
         )}
       </div>
 
       {isSuccess && <div className="success-message">Transaction submitted!</div>}
+      {isChainMismatch && chainId && (
+        <div className="error-message">
+          Connected wallet is on chain {walletChainId}. Switch to chain {chainId} before submitting.
+        </div>
+      )}
       {error && <div className="error-message">{error}</div>}
 
       <OutputDisplay label="Operation ID" value={output.operationId} />
@@ -234,6 +253,7 @@ export function ScheduleTab({
 
       {output.operationId && (
         <StatusDisplay
+          chainId={chainId}
           timelockAddress={timelockAddress}
           operationId={output.operationId as Hex}
         />

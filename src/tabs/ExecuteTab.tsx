@@ -11,36 +11,54 @@ import {
   decodeTimelockCalldata,
 } from '../lib/timelock';
 import type { DecodedTimelock } from '../lib/timelock';
-import { parseUrlState, type Operation as UrlOperation } from '../hooks/useUrlState';
+import {
+  getSupportedChainId,
+  parseUrlState,
+  type Operation as UrlOperation,
+} from '../hooks/useUrlState';
+
+function isOperationId(value: string): value is Hex {
+  return /^0x[a-fA-F0-9]{64}$/.test(value);
+}
 
 interface ExecuteTabProps {
+  chainId?: number;
+  initialChainId: string;
   timelockAddress: Address | undefined;
   safeAddress: Address | undefined;
   initialOps: UrlOperation[];
+  initialOpId: string;
   onUpdate: (ops: UrlOperation[]) => void;
   onClear: () => void;
-  getShareableUrl: () => string;
+  getShareableUrl: (overrides?: { opId?: string }) => string;
   isSafeApp: boolean;
 }
 
 export function ExecuteTab({
+  chainId,
+  initialChainId,
   timelockAddress,
   safeAddress,
   initialOps,
+  initialOpId,
   onUpdate,
   onClear,
   getShareableUrl,
   isSafeApp,
 }: ExecuteTabProps) {
+  const [initialUrlState] = useState(() => parseUrlState());
+  const deepLinkOpId = initialUrlState.opId || initialOpId;
+  const requestedChainId = getSupportedChainId(initialChainId);
+  const hasUnsupportedRequestedChain = !!initialChainId && requestedChainId === undefined;
   const [importCalldata, setImportCalldata] = useState('');
   const [operations, setOperations] = useState(() => {
-    const current = parseUrlState();
-    return current.ops?.length ? current.ops : initialOps;
+    return initialUrlState.ops?.length ? initialUrlState.ops : initialOps;
   });
   const [predecessor, setPredecessor] = useState<string>(zeroHash);
   const [salt, setSalt] = useState<string>(zeroHash);
   const [output, setOutput] = useState({ calldata: '', operationId: '' });
   const [error, setError] = useState('');
+  const [lookupMessage, setLookupMessage] = useState('');
   const [expandedBuilderIndex, setExpandedBuilderIndex] = useState<number | null>(null);
   const [useBatch, setUseBatch] = useState(false);
 
@@ -48,9 +66,15 @@ export function ExecuteTab({
     onUpdate(operations);
   }, [operations, onUpdate]);
 
-  const { isConnected } = useAccount();
+  const { isConnected, chainId: walletChainId } = useAccount();
   const { sendTransaction, data: txHash, isPending } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const executeChainId = deepLinkOpId ? (requestedChainId ?? chainId ?? 1) : chainId;
+  const isChainMismatch =
+    !!isConnected &&
+    !!executeChainId &&
+    walletChainId !== undefined &&
+    walletChainId !== executeChainId;
 
   const handleClear = useCallback(() => {
     setOperations([{ target: '', value: '0', data: '0x' }]);
@@ -59,6 +83,7 @@ export function ExecuteTab({
     setImportCalldata('');
     setOutput({ calldata: '', operationId: '' });
     setError('');
+    setLookupMessage('');
     setUseBatch(false);
     setExpandedBuilderIndex(null);
     onClear();
@@ -75,6 +100,7 @@ export function ExecuteTab({
   const handleImport = useCallback(() => {
     try {
       setError('');
+      setLookupMessage('');
       const decoded = decodeTimelockCalldata(importCalldata as Hex);
       if (!decoded) throw new Error('Could not decode calldata');
 
@@ -109,6 +135,7 @@ export function ExecuteTab({
 
   const handleSelectScheduled = useCallback((decoded: DecodedTimelock) => {
     setError('');
+    setLookupMessage('');
     if (decoded.functionName === 'schedule') {
       setUseBatch(false);
       setOperations([{
@@ -127,6 +154,34 @@ export function ExecuteTab({
     setPredecessor(decoded.predecessor || zeroHash);
     setSalt(decoded.salt || zeroHash);
   }, []);
+
+  useEffect(() => {
+    if (!deepLinkOpId) return;
+
+    if (!isOperationId(deepLinkOpId)) {
+      setLookupMessage('Invalid operation ID in link.');
+      return;
+    }
+
+    if (hasUnsupportedRequestedChain) {
+      setLookupMessage(`Unsupported chainId in link: ${initialChainId}.`);
+      return;
+    }
+
+    if (!safeAddress || !timelockAddress) {
+      setLookupMessage('Enter both a Safe and timelock address to resolve this operation.');
+      return;
+    }
+
+    setLookupMessage(`Resolving operation ${deepLinkOpId.slice(0, 10)}...`);
+  }, [
+    deepLinkOpId,
+    executeChainId,
+    hasUnsupportedRequestedChain,
+    initialChainId,
+    safeAddress,
+    timelockAddress,
+  ]);
 
   const encode = useCallback(() => {
     try {
@@ -167,7 +222,7 @@ export function ExecuteTab({
   }, [operations, predecessor, salt, useBatch]);
 
   const submit = () => {
-    if (!timelockAddress || !output.calldata) return;
+    if (!timelockAddress || !output.calldata || isChainMismatch) return;
     const totalValue = operations.reduce((sum, op) => sum + BigInt(op.value), 0n);
     sendTransaction({ to: timelockAddress, data: output.calldata as Hex, value: totalValue });
   };
@@ -189,9 +244,18 @@ export function ExecuteTab({
       </div>
 
       <ScheduledOperations
+        chainId={executeChainId}
         timelockAddress={timelockAddress || ''}
         safeAddress={safeAddress}
         onSelect={handleSelectScheduled}
+        autoSelectOpId={isOperationId(deepLinkOpId) ? deepLinkOpId : undefined}
+        onAutoSelectResult={(status) => {
+          if (status === 'found') {
+            setLookupMessage(`Resolved operation ${deepLinkOpId.slice(0, 10)}.`);
+          } else {
+            setLookupMessage('Operation not found for this Safe, timelock, and chain.');
+          }
+        }}
       />
 
       <div className="import-section">
@@ -283,21 +347,39 @@ export function ExecuteTab({
           Encode {isBatch ? 'Execute Batch' : 'Execute'}
         </button>
         {output.calldata && isConnected && timelockAddress && (
-          <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
+          <button
+            onClick={submit}
+            disabled={isPending || isConfirming || isChainMismatch}
+            className="btn btn-success"
+          >
             {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : isSafeApp ? 'Submit to Safe' : 'Send Transaction'}
           </button>
         )}
       </div>
 
       {isSuccess && <div className="success-message">Transaction submitted!</div>}
+      {lookupMessage && !error && <div className="status-message">{lookupMessage}</div>}
+      {isChainMismatch && executeChainId && (
+        <div className="error-message">
+          Connected wallet is on chain {walletChainId}. Switch to chain {executeChainId} before submitting.
+        </div>
+      )}
       {error && <div className="error-message">{error}</div>}
 
       <OutputDisplay label="Operation ID" value={output.operationId} />
       <OutputDisplay label={isBatch ? 'Execute Batch Calldata' : 'Execute Calldata'} value={output.calldata} />
-      {output.calldata && <CopyLinkButton getUrl={getShareableUrl} />}
+      {output.calldata && (
+        <CopyLinkButton
+          getUrl={() => getShareableUrl(output.operationId ? { opId: output.operationId } : undefined)}
+        />
+      )}
 
       {output.operationId && (
-        <StatusDisplay timelockAddress={timelockAddress} operationId={output.operationId as Hex} />
+        <StatusDisplay
+          timelockAddress={timelockAddress}
+          operationId={output.operationId as Hex}
+          chainId={executeChainId}
+        />
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { chains } from '../config/wagmi';
 
 export interface Operation {
   target: string;
@@ -39,6 +40,7 @@ export function verifyChecksum(search: string): { valid: boolean; hasChecksum: b
 
 export interface UrlState {
   tab: string;
+  chainId: string;
   timelock: string;
   safe: string;
   ops: Operation[];
@@ -53,6 +55,7 @@ export interface UrlState {
 
 const DEFAULT_STATE: UrlState = {
   tab: 'schedule',
+  chainId: '',
   timelock: '',
   safe: '',
   ops: [{ target: '', value: '0', data: '0x' }],
@@ -103,6 +106,17 @@ function decodeOps(encoded: string): Operation[] | null {
   }
 }
 
+export function getSupportedChainId(chainId: string | number | undefined | null): number | undefined {
+  if (chainId === undefined || chainId === null || chainId === '') return undefined;
+
+  const parsed =
+    typeof chainId === 'number' ? chainId : Number.parseInt(chainId, 10);
+
+  if (!Number.isInteger(parsed)) return undefined;
+
+  return chains.some((chain) => chain.id === parsed) ? parsed : undefined;
+}
+
 export function parseUrlState(): Partial<UrlState> {
   const params = new URLSearchParams(window.location.search);
   const state: Partial<UrlState> = {};
@@ -111,6 +125,9 @@ export function parseUrlState(): Partial<UrlState> {
   if (tab && ['schedule', 'execute', 'decode', 'hash', 'cancel'].includes(tab)) {
     state.tab = tab;
   }
+
+  const chainId = params.get('chainId');
+  if (chainId) state.chainId = chainId;
 
   const timelock = params.get('timelock');
   if (timelock) state.timelock = timelock;
@@ -153,6 +170,10 @@ function buildUrl(state: Partial<UrlState>): string {
 
   if (state.tab && state.tab !== DEFAULT_STATE.tab) {
     params.set('tab', state.tab);
+  }
+
+  if (state.chainId) {
+    params.set('chainId', state.chainId);
   }
 
   if (state.timelock) {
@@ -217,7 +238,7 @@ export function useUrlState(localStorageTimelock: string, localStorageSafe: stri
   initialState: UrlState;
   updateUrl: (state: Partial<UrlState>) => void;
   clearTabState: () => void;
-  getCurrentShareableUrl: () => string;
+  getCurrentShareableUrl: (overrides?: Partial<UrlState>) => string;
 } {
   // Detect iframe mode once on mount
   const isIframeMode = useRef(isInIframe());
@@ -252,7 +273,7 @@ export function useUrlState(localStorageTimelock: string, localStorageSafe: stri
     };
   });
 
-  const currentStateRef = useRef<Partial<UrlState>>({});
+  const currentStateRef = useRef<Partial<UrlState>>(initialState);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const updateUrl = useCallback((state: Partial<UrlState>) => {
@@ -290,11 +311,13 @@ export function useUrlState(localStorageTimelock: string, localStorageSafe: stri
     // Keep only tab, timelock, and safe in URL
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
+    const chainId = params.get('chainId');
     const timelock = params.get('timelock');
     const safe = params.get('safe');
 
     const newParams = new URLSearchParams();
     if (tab) newParams.set('tab', tab);
+    if (chainId) newParams.set('chainId', chainId);
     if (timelock) newParams.set('timelock', timelock);
     if (safe) newParams.set('safe', safe);
 
@@ -305,6 +328,7 @@ export function useUrlState(localStorageTimelock: string, localStorageSafe: stri
     // Reset current state ref to only keep tab, timelock, and safe
     currentStateRef.current = {
       tab: tab || undefined,
+      chainId: chainId || undefined,
       timelock: timelock || undefined,
       safe: safe || undefined,
     };
@@ -329,6 +353,7 @@ export function useUrlState(localStorageTimelock: string, localStorageSafe: stri
       if (preservedTimelock || preservedSafe || tab) {
         localStorage.setItem(APP_STATE_KEY, JSON.stringify({
           tab: tab || undefined,
+          chainId: chainId || undefined,
           timelock: preservedTimelock || undefined,
           safe: preservedSafe || undefined,
         }));
@@ -338,8 +363,8 @@ export function useUrlState(localStorageTimelock: string, localStorageSafe: stri
     }
   }, []);
 
-  const getCurrentShareableUrl = useCallback(() => {
-    return getShareableUrl(currentStateRef.current);
+  const getCurrentShareableUrl = useCallback((overrides?: Partial<UrlState>) => {
+    return getShareableUrl({ ...currentStateRef.current, ...overrides });
   }, []);
 
   return { initialState, updateUrl, clearTabState, getCurrentShareableUrl };

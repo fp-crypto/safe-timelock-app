@@ -8,6 +8,7 @@ import type { DecodedTimelock } from '../lib/timelock';
 import { parseUrlState } from '../hooks/useUrlState';
 
 interface CancelTabProps {
+  chainId?: number;
   timelockAddress: Address | undefined;
   safeAddress: Address | undefined;
   initialOpId: string;
@@ -18,6 +19,7 @@ interface CancelTabProps {
 }
 
 export function CancelTab({
+  chainId,
   timelockAddress,
   safeAddress,
   initialOpId,
@@ -37,9 +39,14 @@ export function CancelTab({
     onUpdate(operationId);
   }, [operationId, onUpdate]);
 
-  const { isConnected } = useAccount();
+  const { isConnected, chainId: walletChainId } = useAccount();
   const { sendTransaction, data: txHash, isPending } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const isChainMismatch =
+    !!isConnected &&
+    !!chainId &&
+    walletChainId !== undefined &&
+    walletChainId !== chainId;
 
   const encode = useCallback(() => {
     try {
@@ -67,7 +74,7 @@ export function CancelTab({
   }, [onClear]);
 
   const submit = () => {
-    if (!timelockAddress || !output) return;
+    if (!timelockAddress || !output || isChainMismatch) return;
     sendTransaction({ to: timelockAddress, data: output as Hex });
   };
 
@@ -86,6 +93,7 @@ export function CancelTab({
       </div>
 
       <ScheduledOperations
+        chainId={chainId}
         timelockAddress={timelockAddress || ''}
         safeAddress={safeAddress}
         onSelect={handleSelectScheduled}
@@ -104,13 +112,22 @@ export function CancelTab({
           Encode Cancel
         </button>
         {output && isConnected && timelockAddress && (
-          <button onClick={submit} disabled={isPending || isConfirming} className="btn btn-success">
+          <button
+            onClick={submit}
+            disabled={isPending || isConfirming || isChainMismatch}
+            className="btn btn-success"
+          >
             {isPending ? 'Confirming...' : isConfirming ? 'Waiting...' : isSafeApp ? 'Submit to Safe' : 'Send Transaction'}
           </button>
         )}
       </div>
 
       {isSuccess && <div className="success-message">Transaction submitted!</div>}
+      {isChainMismatch && chainId && (
+        <div className="error-message">
+          Connected wallet is on chain {walletChainId}. Switch to chain {chainId} before submitting.
+        </div>
+      )}
       {error && <div className="error-message">{error}</div>}
       <OutputDisplay label="Cancel Calldata" value={output} />
       {output && <CopyLinkButton getUrl={getShareableUrl} />}

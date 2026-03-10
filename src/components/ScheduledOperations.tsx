@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useChainId } from 'wagmi';
 import type { Address, Hex } from 'viem';
 import {
@@ -11,6 +11,9 @@ interface ScheduledOperationsProps {
   timelockAddress: string;
   safeAddress: Address | undefined;
   onSelect: (decoded: DecodedTimelock, calldata: Hex) => void;
+  chainId?: number;
+  autoSelectOpId?: Hex | string;
+  onAutoSelectResult?: (status: 'found' | 'not_found') => void;
 }
 
 function formatTimeUntilReady(timestamp: bigint): string {
@@ -227,14 +230,58 @@ export function ScheduledOperations({
   timelockAddress,
   safeAddress,
   onSelect,
+  chainId,
+  autoSelectOpId,
+  onAutoSelectResult,
 }: ScheduledOperationsProps) {
-  const chainId = useChainId();
+  const walletChainId = useChainId();
+  const resolvedChainId = chainId ?? walletChainId;
+  const autoSelectKeyRef = useRef<string | null>(null);
 
   const { operations, isLoading, error, refetch } = useScheduledOperations(
     safeAddress,
-    chainId,
+    resolvedChainId,
     timelockAddress as Address | undefined
   );
+
+  useEffect(() => {
+    if (!autoSelectOpId || !safeAddress || !timelockAddress || !resolvedChainId || isLoading || error) {
+      return;
+    }
+
+    const lookupKey = [
+      resolvedChainId,
+      safeAddress.toLowerCase(),
+      timelockAddress.toLowerCase(),
+      autoSelectOpId.toLowerCase(),
+    ].join(':');
+
+    if (autoSelectKeyRef.current === lookupKey) return;
+
+    const match = operations.find(
+      (operation) => operation.operationId.toLowerCase() === autoSelectOpId.toLowerCase()
+    );
+
+    autoSelectKeyRef.current = lookupKey;
+
+    if (match) {
+      onSelect(match.decoded, match.timelockCalldata);
+      onAutoSelectResult?.('found');
+      return;
+    }
+
+    onAutoSelectResult?.('not_found');
+  }, [
+    autoSelectOpId,
+    error,
+    isLoading,
+    onAutoSelectResult,
+    onSelect,
+    operations,
+    resolvedChainId,
+    safeAddress,
+    timelockAddress,
+  ]);
 
   if (!safeAddress) {
     return (

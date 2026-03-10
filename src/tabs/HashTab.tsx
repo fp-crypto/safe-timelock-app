@@ -11,6 +11,7 @@ import type { DecodedTimelock } from '../lib/timelock';
 import { parseUrlState, type Operation as UrlOperation } from '../hooks/useUrlState';
 
 interface HashTabProps {
+  chainId?: number;
   timelockAddress: Address | undefined;
   safeAddress: Address | undefined;
   initialTarget: string;
@@ -22,6 +23,7 @@ interface HashTabProps {
 }
 
 export function HashTab({
+  chainId,
   timelockAddress,
   safeAddress,
   initialTarget,
@@ -171,6 +173,7 @@ export function HashTab({
       </div>
 
       <ScheduledOperations
+        chainId={chainId}
         timelockAddress={timelockAddress || ''}
         safeAddress={safeAddress}
         onSelect={handleSelectScheduled}
@@ -230,7 +233,11 @@ export function HashTab({
       {operationId && <CopyLinkButton getUrl={getShareableUrl} />}
 
       {operationId && (
-        <StatusDisplay timelockAddress={timelockAddress} operationId={operationId as Hex} />
+        <StatusDisplay
+          timelockAddress={timelockAddress}
+          operationId={operationId as Hex}
+          chainId={chainId}
+        />
       )}
     </div>
   );

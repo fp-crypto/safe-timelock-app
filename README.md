@@ -72,6 +72,10 @@ cp .env.example .env
 # Add your WalletConnect Project ID to .env
 # VITE_WALLETCONNECT_PROJECT_ID=your_project_id_here
 
+# Optional: add preferred RPC URLs (comma-separated for fallback order)
+# VITE_RPC_URL_MAINNET=https://eth.llamarpc.com,https://ethereum-rpc.publicnode.com
+# VITE_RPC_URL_BASE=https://base.llamarpc.com,https://base-rpc.publicnode.com
+
 # Start development server
 npm run dev
 ```
@@ -183,6 +187,13 @@ This tool is designed for [OpenZeppelin's TimelockController](https://docs.openz
 - Gnosis Chain
 
 Add more chains in `src/config/wagmi.ts`.
+
+## RPC Configuration
+
+- Each supported chain now uses an ordered RPC fallback list instead of a single endpoint.
+- If you set `VITE_RPC_URL_<CHAIN>`, provide one or more comma-separated URLs and the app will try them first.
+- If your custom URLs fail, the app falls back to the chain's built-in public RPC URL from wagmi/viem.
+- Available env vars: `VITE_RPC_URL_MAINNET`, `VITE_RPC_URL_SEPOLIA`, `VITE_RPC_URL_ARBITRUM`, `VITE_RPC_URL_OPTIMISM`, `VITE_RPC_URL_POLYGON`, `VITE_RPC_URL_BASE`, `VITE_RPC_URL_GNOSIS`
 
 ## Caching & Performance
 
